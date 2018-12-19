@@ -56,8 +56,16 @@ class Browser:
                 time.sleep(PAUSE)
                 waited += PAUSE
         raise Exception('Timed out waiting for Chrome to open')
+
     def close(self):
+        self.page.close()
         self.connection.send('Browser.close')
         self.connection.close()
         self.page.connection.close()
         self.browser_process.terminate()
+        self.process.terminate()
+        # TODO: Should have a timeout here or something
+        if self._tmp_user_data_dir is not None:
+            while self.process.poll() is None:
+                time.sleep(0.1)
+            shutil.rmtree(self._tmp_user_data_dir)
