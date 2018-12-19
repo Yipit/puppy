@@ -2,10 +2,12 @@ import json
 import queue
 import time
 
-from concurrent.futures import ThreadPoolExecutor
-from threading import Thread
+from threading import Event, Thread
 
 import websocket
+from websocket._exceptions import WebSocketConnectionClosedException
+
+from pypuppet.exceptions import BrowserError
 
 
 class Connection:
@@ -16,7 +18,6 @@ class Connection:
 
         self.messages = {}
         self.events_queue = queue.Queue()
-        self.events_threadpool = ThreadPoolExecutor(max_workers=5)
         self.event_handlers = {}
 
         self._message_id = 0
@@ -31,18 +32,24 @@ class Connection:
     # TODO: do real error handling
     def _recv_loop(self):
         while not self.closed:
-            message_raw = self._ws.recv()
-            # print('message -- ', message_raw)
+            try:
+                message_raw = self._ws.recv()
+                # print('recieved -- ', message_raw[:1000])
+            except WebSocketConnectionClosedException:
+                if self.closed:
+                    continue  # ignore if we closed intentionally. TODO: probably a better way
+                else:
+                    raise
             message = json.loads(message_raw)
             if 'id' in message:
                 if 'error' in message:
-                    self.messages[message['id']] = {'error': 'ERROR'}
-                    print('Error returned from websocket server: {}'.format(message['error']['message']))
+                    self.messages[message['id']]['error'] = message['error']
                 else:
-                    result = message.get('result')
-                self.messages[message['id']] = result
+                    self.messages[message['id']]['result'] = message.get('result')
+                self.messages[message['id']]['event'].set()
             elif 'method' in message:
                 self.events_queue.put(message)
+        self._ws.close()
 
     def _handle_event_loop(self):
         while not self.closed:
@@ -53,27 +60,31 @@ class Connection:
 
             if event['method'] in self.event_handlers:
                 for cb in self.event_handlers[event['method']]:
-                    try:
-                        self.events_threadpool.submit(cb, **event['params'])
-                    except Exception as e:
-                        print('error in event handler: {}'.format(e))
+                    cb(**event['params'])
 
-            # self.events_queue.task_done()
+            self.events_queue.task_done()
 
     def send(self, method, **kwargs):
-        id_ = self._send({'method': method, 'params': kwargs})
-        return self._wait_for_response(id_)
+        return self._send({'method': method, 'params': kwargs})
+
+    def _send(self, message):
+        if 'id' not in message:
+            id_ = self.message_id()
+            message['id'] = id_
+        event_ = Event()
+        self.messages[id_] = {'event': event_}
+        # print('sent -- ', json.dumps(message))
+        self._ws.send(json.dumps(message))
+        event_.wait()
+        if 'error' in self.messages[id_]:
+            # print(BrowserError(self.messages[id_]['error']))
+            raise BrowserError(self.messages[id_]['error'])
+        else:
+            return self.messages[id_]['result']
 
     def on(self, method, cb):
         self.event_handlers[method] = self.event_handlers.get(method, [])
         self.event_handlers[method].append(cb)
-
-    def _send(self, message):
-        if 'id' not in message:
-            message['id'] = self.message_id()
-        self._ws.send(json.dumps(message))
-        # print('sent -- ', json.dumps(message))
-        return message['id']
 
     def _wait_for_response(self, id_, timeout=5):
         waited = 0.0
