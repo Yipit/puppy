@@ -81,27 +81,32 @@ class Page:
         self._wait_for_lifecycle_event(res['loaderId'], wait_until, timeout)
 
     def content(self):
-        document_element_res = self.connection.send('Runtime.evaluate', expression='document.documentElement')
-        if document_element_res['result']['type'] == 'object':
-            res = self.connection.send('Runtime.evaluate', expression='document.documentElement.outerHTML')
-            return res['result']['value']
-        else:
-            return None
+        return self.document._prop('documentElement').html
 
     def evaluate(self, expression):
-        response = self.connection.send('Runtime.evaluate', expression=expression)
+        response = self.session.send('Runtime.evaluate', expression=expression)
         if 'result' not in response:
-            # Maybe sometimes there is expected to be no result?
+            # TODO: Maybe sometimes there is expected to be no result?
             raise Exception('no result in {}'.format(json.dumps(response)))
         if 'value' in response['result']:
             return response['result']['value']
         else:
-            return response['result']  # What do we actually want?
+            return response['result']
 
+    @property
     def document(self):
         response = self.evaluate('document')
         return Element(response['objectId'], response['description'], self)
 
+    def xpath(self, expression):
+        return self.document.xpath(expression)
+
+    def click(self, xpath_expression):
+        element_list = self.xpath(xpath_expression)
+        # TODO: Raise error if element is not clickable.
+        if not len(element_list):
+            raise Exception(f'Element with xpath {xpath_expression} does not exist')
+        element_list[0].click()
     def track_network_responses(self):
         self.connection.send('Network.enable', enabled=True)
 
