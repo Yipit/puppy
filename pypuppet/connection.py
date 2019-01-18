@@ -8,6 +8,7 @@ import websocket
 from websocket._exceptions import WebSocketConnectionClosedException
 
 from pypuppet.exceptions import BrowserError
+from pypuppet.session import Session
 
 
 class Connection:
@@ -17,6 +18,7 @@ class Connection:
         self._ws = websocket.create_connection(self.endpoint, enable_multithread=True)
 
         self.messages = {}
+        self._sessions = {}
         self.events_queue = queue.Queue()
         self.event_handlers = {}
 
@@ -29,7 +31,13 @@ class Connection:
         self._handle_event_thread.setDaemon(True)
         self._handle_event_thread.start()
 
-    # TODO: do real error handling
+    def new_session(self, target_id):
+        response = self.send('Target.attachToTarget', targetId=target_id)
+        session_id = response['sessionId']
+        session = Session(self, session_id)
+        self._sessions[session_id] = session
+        return session
+
     def _recv_loop(self):
         while not self.closed:
             try:
@@ -37,16 +45,26 @@ class Connection:
                 # print('recieved -- ', message_raw[:1000])
             except WebSocketConnectionClosedException:
                 if self.closed:
-                    continue  # ignore if we closed intentionally. TODO: probably a better way
+                    continue
                 else:
                     raise
             message = json.loads(message_raw)
-            if 'id' in message:
+
+            # Messages meant to be passed to some session
+            if message.get('method') == 'Target.receivedMessageFromTarget':
+                message_from_target = json.loads(message['params']['message'])
+                session_id = message['params']['sessionId']
+                self._sessions.get(session_id).on_message(message_from_target)
+
+            # Responses to messages sent from this connection
+            elif 'id' in message:
                 if 'error' in message:
                     self.messages[message['id']]['error'] = message['error']
                 else:
                     self.messages[message['id']]['result'] = message.get('result')
                 self.messages[message['id']]['event'].set()
+
+            # Events fired for this connection
             elif 'method' in message:
                 self.events_queue.put(message)
         self._ws.close()
@@ -65,7 +83,8 @@ class Connection:
             self.events_queue.task_done()
 
     def send(self, method, **kwargs):
-        return self._send({'method': method, 'params': kwargs})
+        message = {'method': method, 'params': kwargs}
+        return self._send(message)
 
     def _send(self, message):
         if 'id' not in message:
@@ -81,6 +100,12 @@ class Connection:
             raise BrowserError(self.messages[id_]['error'])
         else:
             return self.messages[id_]['result']
+
+    def _send_no_wait(self, message):
+        if 'id' not in message:
+            id_ = self.message_id()
+            message['id'] = id_
+        self._ws.send(json.dumps(message))
 
     def on(self, method, cb):
         self.event_handlers[method] = self.event_handlers.get(method, [])
