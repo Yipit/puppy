@@ -14,9 +14,12 @@ from pypuppet.page import Page
 class Browser:
     PORT = 9222
 
-    def __init__(self, headless=True, proxy_uri=None, user_data_dir=None, *args, **kwargs):
+    def __init__(self, headless=True, proxy_uri=None, user_data_dir=None, executable_path=None, *args, **kwargs):
+        # On mac, `brew cask install chromium` for the default to work
+        # TODO: Download a version of chromium like puppeteer
+        executable_path = executable_path or '/Applications/Chromium.app/Contents/MacOS/Chromium'
         cmd = [
-            '/Applications/Chromium.app/Contents/MacOS/Chromium',
+            executable_path,
             'about:blank',
             '--remote-debugging-port={}'.format(self.PORT)
         ]
@@ -26,12 +29,12 @@ class Browser:
 
         self._tmp_user_data_dir = None
         if user_data_dir is None:
-            self._tmp_user_data_dir = tempfile.mkdtemp(dir='/Users/samnarisi/tmp')
+            self._tmp_user_data_dir = tempfile.mkdtemp(dir='/tmp')
         cmd.append('--user-data-dir={}'.format(user_data_dir or self._tmp_user_data_dir))
-        print(self._tmp_user_data_dir)
 
-        if proxy_uri is not None:
-            parsed_uri = urlparse(proxy_uri)
+        self._proxy_uri = proxy_uri
+        if self._proxy_uri is not None:
+            parsed_uri = urlparse(self._proxy_uri)
             proxy_address = '{}://{}:{}'.format(parsed_uri.scheme, parsed_uri.hostname, parsed_uri.port)
             cmd.append('--proxy-server={}'.format(proxy_address))
 
@@ -40,10 +43,21 @@ class Browser:
         self.connection = Connection(self.websocket_endpoint)
         pages = json.loads(urlopen('http://localhost:{}/json/list'.format(self.PORT)).read())
 
-        # TODO: Sometimes there a background page called 'CrytpoTokenExtension'. what's that about?
-        target_page = [p for p in pages if p['type'] == 'page'][0]
-        page_endpoint = target_page['webSocketDebuggerUrl']
-        self.page = Page(page_endpoint, proxy_uri=proxy_uri)
+        self._pages = []
+        pages = [p for p in pages if p['type'] == 'page']
+        if len(pages):
+            for page in pages:
+                self._pages.append(Page(self.connection, page['id'], proxy_uri=self._proxy_uri))
+            self.page = self._pages[0]
+        else:
+            self.page = self.new_page()
+
+    def new_page(self, url='about:blank'):
+        response = self.connection.send('Target.createTarget', url=url)
+        target_id = response['targetId']
+        self.page = Page(self.connection, target_id, proxy_uri=self._proxy_uri)
+        self._pages.append(self.page)
+        return self.page
 
     def _wait_for_ws_endpoint(self, url, timeout=5):
         PAUSE = 0.1
@@ -57,15 +71,18 @@ class Browser:
                 waited += PAUSE
         raise Exception('Timed out waiting for Chrome to open')
 
+    def _clear_temp_user_data_dir(self, timeout=5):
+        waited = 0.0
+        while self.process.poll() is None:
+            time.sleep(0.1)
+            waited += 0.1
+            if waited >= timeout:
+                raise Exception('Timeout waiting for Chrome to close')
+        shutil.rmtree(self._tmp_user_data_dir)
+
     def close(self):
-        self.page.close()
         self.connection.send('Browser.close')
         self.connection.close()
-        self.page.connection.close()
-        self.browser_process.terminate()
         self.process.terminate()
-        # TODO: Should have a timeout here or something
         if self._tmp_user_data_dir is not None:
-            while self.process.poll() is None:
-                time.sleep(0.1)
-            shutil.rmtree(self._tmp_user_data_dir)
+            self._clear_temp_user_data_dir()
