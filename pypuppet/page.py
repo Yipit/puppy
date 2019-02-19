@@ -1,4 +1,5 @@
 import json
+import time
 
 from pypuppet.js_object import Element
 from pypuppet.lifecycle_watcher import LifecycleWatcher
@@ -55,6 +56,28 @@ class Page:
         if not len(element_list):
             raise Exception(f'Element with xpath {xpath_expression} does not exist')
         element_list[0].click()
+
+    def wait_for_xpath(self, xpath_expr, visible=False, timeout=30):
+        slept = 0.0
+        interval = 0.1
+        element_list = []
+        while slept < timeout:
+            element_list = self.xpath(xpath_expr)
+            if element_list:
+                return element_list
+            time.sleep(interval)
+            slept += interval
+        raise Exception('Timed out waiting for {}'.format(xpath_expr))
+
+    def reload(self):
+        self.session.send('Page.reload')
+        # TODO: need to wait for navigation here
+        time.sleep(3)
+
+    # TODO: This is not how puppeteer implements this; verify it actually works
+    def url(self):
+        response = self.session.send('Target.getTargetInfo', targetId=self._target_id)
+        return response.get('targetInfo', {}).get('url')
 
     def track_network_responses(self):
         self.session.send('Network.enable', enabled=True)
