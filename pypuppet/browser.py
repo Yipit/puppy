@@ -14,12 +14,17 @@ from pypuppet.page import Page
 
 
 class Browser:
+    # TODO: choose a random open port
     PORT = 9222
 
-    def __init__(self, headless=True, proxy_uri=None, user_data_dir=None, executable_path=None, *args, **kwargs):
-        # On mac, `brew cask install chromium` for the default to work
-        # TODO: Download a version of chromium like puppeteer
-        executable_path = executable_path or '/Applications/Chromium.app/Contents/MacOS/Chromium'
+    def __init__(self,
+                 headless=True,
+                 proxy_uri=None,
+                 user_data_dir=None,
+                 executable_path=None,
+                 debug=False,
+                 *args,
+                 **kwargs):
         if not executable_path:
             executable_path = get_executable_path()
             if not os.path.exists(executable_path):
@@ -46,7 +51,7 @@ class Browser:
 
         self.process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         self.websocket_endpoint = self._wait_for_ws_endpoint('http://localhost:{}/json/version'.format(self.PORT))
-        self.connection = Connection(self.websocket_endpoint)
+        self.connection = Connection(self.websocket_endpoint, debug=debug)
         pages = json.loads(urlopen('http://localhost:{}/json/list'.format(self.PORT)).read())
 
         self._pages = []

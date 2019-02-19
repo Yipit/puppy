@@ -1,2 +1,2 @@
-pychrome==0.2.2
 appdirs==1.4.3
+websocket-client==0.54.0

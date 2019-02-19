@@ -3,6 +3,7 @@ from threading import Event
 
 class LifecycleWatcher:
     LIFECYCLE_EVENTS = [
+        'commit',
         'DOMContentLoaded',
         'firstContentfulPaint',
         'firstImagePaint',
@@ -13,7 +14,7 @@ class LifecycleWatcher:
         'init',
         'load',
         'networkAlmostIdle',
-        'networkIdle'
+        'networkIdle',
     ]
 
     def __init__(self, page):

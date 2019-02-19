@@ -1,6 +1,6 @@
 import json
+import logging
 import queue
-import time
 
 from threading import Event, Thread
 
@@ -12,7 +12,7 @@ from pypuppet.session import Session
 
 
 class Connection:
-    def __init__(self, endpoint):
+    def __init__(self, endpoint, debug=False):
         self.endpoint = endpoint
         self.closed = False
         self._ws = websocket.create_connection(self.endpoint, enable_multithread=True)
@@ -31,6 +31,8 @@ class Connection:
         self._handle_event_thread.setDaemon(True)
         self._handle_event_thread.start()
 
+        self._debug = debug
+
     def new_session(self, target_id):
         response = self.send('Target.attachToTarget', targetId=target_id)
         session_id = response['sessionId']
@@ -42,7 +44,8 @@ class Connection:
         while not self.closed:
             try:
                 message_raw = self._ws.recv()
-                # print('recieved -- ', message_raw[:1000])
+                if self._debug:  # TODO: set up a logger and format this nicely
+                    print('recieved -- ', message_raw[:1000])
             except WebSocketConnectionClosedException:
                 if self.closed:
                     continue
@@ -92,11 +95,11 @@ class Connection:
             message['id'] = id_
         event_ = Event()
         self.messages[id_] = {'event': event_}
-        # print('sent -- ', json.dumps(message))
+        if self._debug:  # TODO: set up a logger and format this nicely
+            print('sent -- ', json.dumps(message))
         self._ws.send(json.dumps(message))
         event_.wait()
         if 'error' in self.messages[id_]:
-            # print(BrowserError(self.messages[id_]['error']))
             raise BrowserError(self.messages[id_]['error'])
         else:
             return self.messages[id_]['result']
@@ -110,17 +113,6 @@ class Connection:
     def on(self, method, cb):
         self.event_handlers[method] = self.event_handlers.get(method, [])
         self.event_handlers[method].append(cb)
-
-    def _wait_for_response(self, id_, timeout=5):
-        waited = 0.0
-        while waited < timeout:
-            response = self.messages.pop(id_, None)
-            if response is not None:
-                return response
-            else:
-                time.sleep(0.1)
-                waited += 0.1
-        raise Exception('Timed out waiting for response from websocket server')
 
     def message_id(self):
         id_ = self._message_id
