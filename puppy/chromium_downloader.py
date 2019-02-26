@@ -25,7 +25,7 @@ EXECUTABLE_PATHS = {
 
 
 def _get_download_location():
-    base_dir = os.getenv('PYPUPPET_HOME', AppDirs('pypuppet').user_data_dir)
+    base_dir = os.getenv('PUPPY_HOME', AppDirs('puppy').user_data_dir)
     return os.path.join(base_dir, 'local-chromium')
 
 
@@ -73,7 +73,7 @@ def download_chromium():
         raise IOError('Failed to extract chromium zip')
     os.chmod(exec_path, os.stat(exec_path).st_mode | stat.S_IXOTH | stat.S_IXGRP | stat.S_IXUSR)
     os.unlink(zip_path)
-    print('Done!')
+    print('Done! Chromium binary located at {}'.format(exec_path))
 
 
 def get_executable_path():

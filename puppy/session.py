@@ -3,7 +3,7 @@ import queue
 
 from threading import Event, Thread
 
-from pypuppet.exceptions import BrowserError
+from .exceptions import BrowserError
 
 
 class Session:

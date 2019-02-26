@@ -1,9 +1,9 @@
 import json
 import time
 
-from pypuppet.js_object import Element
-from pypuppet.lifecycle_watcher import LifecycleWatcher
-from pypuppet.request_manager import RequestManager
+from .js_object import Element
+from .lifecycle_watcher import LifecycleWatcher
+from .request_manager import RequestManager
 
 
 class Page:

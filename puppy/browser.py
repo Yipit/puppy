@@ -8,9 +8,9 @@ import time
 from urllib.parse import urlparse
 from urllib.request import urlopen, URLError
 
-from pypuppet.chromium_downloader import download_chromium, get_executable_path
-from pypuppet.connection import Connection
-from pypuppet.page import Page
+from .chromium_downloader import download_chromium, get_executable_path
+from .connection import Connection
+from .page import Page
 
 
 class Browser:

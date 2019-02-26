@@ -1,5 +1,4 @@
 import json
-import logging
 import queue
 
 from threading import Event, Thread
@@ -7,8 +6,8 @@ from threading import Event, Thread
 import websocket
 from websocket._exceptions import WebSocketConnectionClosedException
 
-from pypuppet.exceptions import BrowserError
-from pypuppet.session import Session
+from .exceptions import BrowserError
+from .session import Session
 
 
 class Connection:
