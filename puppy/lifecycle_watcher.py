@@ -1,5 +1,7 @@
 from threading import Event
 
+from .exceptions import PageError
+
 
 class LifecycleWatcher:
     LIFECYCLE_EVENTS = [
@@ -17,26 +19,36 @@ class LifecycleWatcher:
         'networkIdle',
     ]
 
-    def __init__(self, page):
+    def __init__(self, page, wait_until, require_new_loader=True):
         self._page = page
+        self._wait_until = wait_until if isinstance(wait_until, list) else [wait_until]
+        self._require_new_loader = require_new_loader
         self._session = self._page.create_devtools_session()
-        self._events = {}
+        self._initial_loader_id = page.loader_id
+        self._loader_id = None
+        self._lifecycle_events = set()
+        self._lifecycle_complete_event = Event()
 
         self._session.send('Page.enable')
         self._session.send('Page.setLifecycleEventsEnabled', enabled=True)
         self._session.on('Page.lifecycleEvent', self._on_lifecycle_event)
 
     def _on_lifecycle_event(self, loaderId, name, **kwargs):
-        self._set_events_key(loaderId)
-        self._events[loaderId][name].set()
+        if name == 'init':
+            self._loader_id = loaderId
+            self._lifecycle_events.clear()
+            return
+        if not self._require_new_loader or loaderId != self._initial_loader_id:
+            self._lifecycle_events.add(name)
+        if self._check_events():
+            self._lifecycle_complete_event.set()
 
-    def wait_for_event(self, loader_id, event_name, timeout):
-        self._set_events_key(loader_id)
-        # TODO: Raise a custom exception here instead of whatever normally happens
-        self._events[loader_id][event_name].wait(timeout)
-        self._events.clear()
+    def _check_events(self):
+        for event in self._wait_until:
+            if event not in self._lifecycle_events:
+                return False
+        return True
 
-    def _set_events_key(self, loader_id):
-        # Need to make sure the key in the _events dict is initialized before we recieve or wait for an event
-        if loader_id not in self._events:
-            self._events[loader_id] = {e: Event() for e in self.LIFECYCLE_EVENTS}
+    def wait(self, timeout):
+        if not self._lifecycle_complete_event.wait(timeout=timeout):
+            raise PageError('Navigation not completed after %s seconds.' % timeout)

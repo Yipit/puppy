@@ -56,7 +56,6 @@ class Session:
                               sessionId=self._session_id)
         event_.wait()
         if 'error' in self.messages[id_]:
-            # print(BrowserError(self.messages[id_]['error']))
             raise BrowserError(self.messages[id_]['error'])
         else:
             return self.messages[id_]['result']

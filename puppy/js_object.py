@@ -1,5 +1,7 @@
 import json
 
+from .exceptions import BrowserError
+
 
 class JSObject:
     '''An interface for interacting with javascript objects in browser runtime'''
@@ -14,16 +16,17 @@ class JSObject:
 
     def _method(self, method, *args):
         function = f'(element, ...args) => element.{method}(...args)'
-        args = self._convert_args(self, *args)
+        args = [self, *args]
         return self._remote_call(function, args)
 
     def _prop(self, prop):
         function = f'(element) => element.{prop}'
-        args = self._convert_args(self)
+        args = [self]
         return self._remote_call(function, args)
 
     def _remote_call(self, function, args):
         # I think this is right, but having trouble figuring out exactly what all these IDs mean
+        args = self._convert_args(args)
         execution_context_id = json.loads(self._object_id)['injectedScriptId']
         response = self._page.session.send(
             'Runtime.callFunctionOn',
@@ -43,11 +46,11 @@ class JSObject:
             else:
                 return JSObject(response['result']['objectId'], response['result']['description'], self._page)
         elif response['result']['type'] == 'undefined':
-            return None  # TODO: Or raise an error like python would?
+            return None
         else:
-            raise Exception('Don\'t know what I got')
+            raise BrowserError('Unknown response from remote javascipt call')  # TODO: Find out if this can happen
 
-    def _convert_args(self, *args):
+    def _convert_args(self, args):
         to_return = []
         for arg in args:
             if hasattr(arg, '_object_id'):
@@ -73,6 +76,14 @@ class Element(JSObject):
     def querySelector(self, selector):
         return self._method('querySelector', selector)
 
+    def querySelectorAll(self, selector):
+        query_selector_all_result = self._method('querySelectorAll', selector)
+        length = query_selector_all_result._prop('length')
+        results = []
+        for i in range(length):
+            results.append(query_selector_all_result._method('item', i))
+        return results
+
     @property
     def html(self):
         return self._prop('outerHTML')
@@ -80,6 +91,9 @@ class Element(JSObject):
     @property
     def text(self):
         return self._prop('textContent')
+
+    def focus(self):
+        return self._method('focus')
 
     def click(self):
         quads = self._page.session.send('DOM.getContentQuads', objectId=self._object_id)['quads'][0]

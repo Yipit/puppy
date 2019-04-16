@@ -10,6 +10,9 @@ from .exceptions import BrowserError
 from .session import Session
 
 
+MESSAGE_TIMEOUT = 300
+
+
 class Connection:
     def __init__(self, endpoint, debug=False):
         self.endpoint = endpoint
@@ -97,7 +100,7 @@ class Connection:
         if self._debug:  # TODO: set up a logger and format this nicely
             print('sent -- ', json.dumps(message))
         self._ws.send(json.dumps(message))
-        event_.wait()
+        event_.wait(timeout=MESSAGE_TIMEOUT)
         if 'error' in self.messages[id_]:
             raise BrowserError(self.messages[id_]['error'])
         else:
