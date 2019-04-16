@@ -10,12 +10,12 @@ from urllib.request import urlopen, URLError
 
 from .chromium_downloader import download_chromium, get_executable_path
 from .connection import Connection
+from .exceptions import BrowserError
 from .page import Page
+from .utils import get_free_port
 
 
 class Browser:
-    # TODO: choose a random open port
-    PORT = 9222
 
     def __init__(self,
                  headless=True,
@@ -29,10 +29,11 @@ class Browser:
             executable_path = get_executable_path()
             if not os.path.exists(executable_path):
                 download_chromium()
+        self._port = get_free_port()
         cmd = [
             executable_path,
             'about:blank',
-            '--remote-debugging-port={}'.format(self.PORT)
+            '--remote-debugging-port={}'.format(self._port)
         ]
 
         if headless is True:
@@ -50,9 +51,9 @@ class Browser:
             cmd.append('--proxy-server={}'.format(proxy_address))
 
         self.process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        self.websocket_endpoint = self._wait_for_ws_endpoint('http://localhost:{}/json/version'.format(self.PORT))
+        self.websocket_endpoint = self._wait_for_ws_endpoint('http://localhost:{}/json/version'.format(self._port))
         self.connection = Connection(self.websocket_endpoint, debug=debug)
-        pages = json.loads(urlopen('http://localhost:{}/json/list'.format(self.PORT)).read())
+        pages = json.loads(urlopen('http://localhost:{}/json/list'.format(self._port)).read())
 
         self._pages = []
         pages = [p for p in pages if p['type'] == 'page']
@@ -61,9 +62,9 @@ class Browser:
                 self._pages.append(Page(self.connection, page['id'], proxy_uri=self._proxy_uri))
             self.page = self._pages[0]
         else:
-            self.page = self.new_page()
+            self.page = self._new_page()
 
-    def new_page(self, url='about:blank'):
+    def _new_page(self, url='about:blank'):
         response = self.connection.send('Target.createTarget', url=url)
         target_id = response['targetId']
         self.page = Page(self.connection, target_id, proxy_uri=self._proxy_uri)
@@ -80,7 +81,7 @@ class Browser:
             except URLError:
                 time.sleep(PAUSE)
                 waited += PAUSE
-        raise Exception('Timed out waiting for Chrome to open')
+        raise BrowserError('Timed out waiting for Chrome to open')
 
     def _clear_temp_user_data_dir(self, timeout=5):
         waited = 0.0
@@ -88,7 +89,7 @@ class Browser:
             time.sleep(0.1)
             waited += 0.1
             if waited >= timeout:
-                raise Exception('Timeout waiting for Chrome to close')
+                raise BrowserError('Timeout waiting for Chrome to close')
         shutil.rmtree(self._tmp_user_data_dir)
 
     def close(self):
