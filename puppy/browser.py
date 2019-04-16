@@ -16,15 +16,14 @@ from .utils import get_free_port
 
 
 class Browser:
-
     def __init__(self,
                  headless=True,
                  proxy_uri=None,
+                 user_agent=None,
                  user_data_dir=None,
                  executable_path=None,
                  debug=False,
-                 *args,
-                 **kwargs):
+                 args=None):
         if not executable_path:
             executable_path = get_executable_path()
             if not os.path.exists(executable_path):
@@ -36,8 +35,14 @@ class Browser:
             '--remote-debugging-port={}'.format(self._port)
         ]
 
+        if args is not None:
+            cmd.extend(args)
+
         if headless is True:
             cmd.append('--headless')
+
+        if user_agent is not None:
+            cmd.append('--user-agent={}'.format(user_agent))
 
         self._tmp_user_data_dir = None
         if user_data_dir is None:
