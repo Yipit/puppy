@@ -232,7 +232,7 @@ class Page:
             timeout (int, optional): The number of seconds to wait before throwing an error.
 
         Returns:
-            None.
+            A list of elements matching the xpath expression.
 
         Raises:
             PageError: If no matching element is found before the given timeout.
@@ -243,10 +243,15 @@ class Page:
         while slept < timeout:
             element_list = self.xpath(xpath_expr)
             if element_list:
-                return element_list
+                if visible:
+                    visible_elements = [e for e in element_list if e.is_visible]
+                    if len(visible_elements):
+                        return visible_elements
+                else:
+                    return element_list
             time.sleep(interval)
             slept += interval
-        raise PageError('Timed out waiting for element at %s' % xpath_expr)
+        raise PageError('Timed out waiting for element at `%s`' % xpath_expr)
 
     def xpath(self, expression):
         """Search the current page for elements matching an xpath expression.

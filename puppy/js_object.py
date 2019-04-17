@@ -103,3 +103,18 @@ class Element(JSObject):
         self._page.session.send('Input.dispatchMouseEvent', type='mouseMoved', x=mean_x, y=mean_y)
         self._page.session.send('Input.dispatchMouseEvent', type='mousePressed', x=mean_x, y=mean_y, button='left', clickCount=1)
         self._page.session.send('Input.dispatchMouseEvent', type='mouseReleased', x=mean_x, y=mean_y, button='left', clickCount=1)
+
+    @property
+    def is_visible(self):
+        style = self._remote_call('window.getComputedStyle', [self])
+        visibility = style._prop('visibility')
+        has_visible_bounding_box = self._remote_call(
+            '''
+            (element) => {
+                const rect = element.getBoundingClientRect();
+                return !!(rect.top || rect.bottom || rect.width || rect.height);
+            }
+            ''',
+            [self]
+        )
+        return visibility != 'hidden' and has_visible_bounding_box
