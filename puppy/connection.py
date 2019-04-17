@@ -100,7 +100,8 @@ class Connection:
         if self._debug:  # TODO: set up a logger and format this nicely
             print('sent -- ', json.dumps(message))
         self._ws.send(json.dumps(message))
-        event_.wait(timeout=MESSAGE_TIMEOUT)
+        if not event_.wait(timeout=MESSAGE_TIMEOUT):
+            raise BrowserError('Timed out waiting for response from browser')
         if 'error' in self.messages[id_]:
             raise BrowserError(self.messages[id_]['error'])
         else:
