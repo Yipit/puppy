@@ -6,6 +6,9 @@ from threading import Event, Thread
 from .exceptions import BrowserError
 
 
+MESSAGE_TIMEOUT = 300
+
+
 class Session:
     def __init__(self, connection, session_id):
         self._connection = connection
@@ -54,7 +57,8 @@ class Session:
         self._connection.send('Target.sendMessageToTarget',
                               message=json.dumps(message),
                               sessionId=self._session_id)
-        event_.wait()
+        if not event_.wait(timeout=MESSAGE_TIMEOUT):
+            raise BrowserError('Timed out waiting for response from browser')
         if 'error' in self.messages[id_]:
             raise BrowserError(self.messages[id_]['error'])
         else:
