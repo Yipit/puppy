@@ -3,18 +3,23 @@ import stat
 import subprocess
 import sys
 
-from urllib.request import urlretrieve
+from urllib.request import HTTPError, Request, urlretrieve, urlopen
+from zipfile import ZipFile
 
 from appdirs import AppDirs
 
 
-CHROMIUM_REVISION = '624087'
+# TODO: keep these up to date
+CHROMIUM_REVISION = 624087
+REVISION_MAX = 624090
+REVISION_MIN = 624080
+
 BASE_URL = 'https://storage.googleapis.com/chromium-browser-snapshots'
 DOWNLOAD_URLS = {
-    'linux': '{}/Linux_x64/{}/{}'.format(BASE_URL, CHROMIUM_REVISION, 'chrome-linux.zip'),
-    'mac': '{}/Mac/{}/{}'.format(BASE_URL, CHROMIUM_REVISION, 'chrome-mac.zip'),
-    'win32': '{}/Win/{}/{}'.format(BASE_URL, CHROMIUM_REVISION, 'chrome-win32.zip'),
-    'win64': '{}/Win_x64/{}/{}'.format(BASE_URL, CHROMIUM_REVISION, 'chrome-win64.zip')
+    'linux': '{}/Linux_x64/{{revision}}/{}'.format(BASE_URL, 'chrome-linux.zip'),
+    'mac': '{}/Mac/{{revision}}/{}'.format(BASE_URL, 'chrome-mac.zip'),
+    'win32': '{}/Win/{{revision}}/{}'.format(BASE_URL, 'chrome-win.zip'),
+    'win64': '{}/Win_x64/{{revision}}/{}'.format(BASE_URL, 'chrome-win.zip')
 }
 EXECUTABLE_PATHS = {
     'linux': 'chrome-linux/chrome',
@@ -42,6 +47,27 @@ def _get_platform():
         raise OSError('Platform not supported: {}'.format(sys.platform))
 
 
+def _get_download_url(platform):
+    url_template = DOWNLOAD_URLS[platform]
+    for rev in range(CHROMIUM_REVISION, REVISION_MAX + 1):
+        try:
+            url = url_template.format(revision=rev)
+            request = Request(url, method='HEAD')
+            urlopen(request)
+            return url
+        except HTTPError:
+            pass
+    for rev in reversed(range(REVISION_MIN, CHROMIUM_REVISION)):
+        try:
+            url = url_template.format(revision=rev)
+            request = Request(url, method='HEAD')
+            urlopen(request)
+            return url
+        except HTTPError:
+            pass
+    raise Exception('No downloadable revision could be found in range')
+
+
 # TODO: Get this to work on all platforms. ZipFile should work elsewhere but doesn't on mac
 def download_chromium():
     platform = _get_platform()
@@ -54,23 +80,28 @@ def download_chromium():
         os.makedirs(destination)
 
     print('Hold tight, chromium is downloading')
-    url = DOWNLOAD_URLS[platform]
+    url = _get_download_url(platform)
     zip_path = os.path.join(destination, 'chrome.zip')
     urlretrieve(url, zip_path)
 
     print('Extracting zip file')
-    proc = subprocess.run(
-        ['unzip', zip_path],
-        cwd=destination,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT
-    )
-    if proc.returncode != 0:
-        print(proc.stdout.decode())
-        raise IOError('Failed to extract chromium zip')
+    if platform == 'mac':
+        proc = subprocess.run(
+            ['unzip', zip_path],
+            cwd=destination,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT
+        )
+        if proc.returncode != 0:
+            print(proc.stdout.decode())
+            raise IOError('Failed to extract chromium zip')
 
-    if not os.path.exists(exec_path):
-        raise IOError('Failed to extract chromium zip')
+        if not os.path.exists(exec_path):
+            raise IOError('Failed to extract chromium zip')
+    else:
+        with ZipFile(zip_path) as zf:
+            zf.extractall(destination)
+
     os.chmod(exec_path, os.stat(exec_path).st_mode | stat.S_IXOTH | stat.S_IXGRP | stat.S_IXUSR)
     os.unlink(zip_path)
     print('Done! Chromium binary located at {}'.format(exec_path))
