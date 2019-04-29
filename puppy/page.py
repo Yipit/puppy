@@ -41,12 +41,17 @@ class Page:
 
     # Public API #
 
-    def click(self, xpath_expression):
+    def click(self, xpath_expression, button='left', click_count=1, delay=0):
         """Click an element on the page.
 
         Args:
             xpath_expression (str): The expression to search the page for. The first matching element will
                 be clicked.
+            button (str, optional): Mouse button to use when simulating the click ("left", "right", or "middle").
+                Defaults to "left".
+            click_count (int, optional): The number of times to fire the mouse event. Defaults to 1.
+            delay (int, optional): The number of miliseconds to wait between pressing and releasing the mouse button.
+                Defaults to 0.
 
         Returns:
             None.
@@ -59,7 +64,7 @@ class Page:
         # TODO: Can we check if the element is clickable?
         if not len(element_list):
             raise PageError('Element with xpath %s does not exist' % xpath_expression)
-        element_list[0].click()
+        element_list[0].click(button=button, click_count=click_count, delay=delay)
 
     def close(self):
         """Close the page."""
@@ -155,9 +160,15 @@ class Page:
             raise PageError('Element with xpath %s does not exist' % xpath_expression)
         element_list[0].focus()
 
-    def reload(self):
-        """Refresh the page."""
-        with self.wait_for_navigation(wait_until='load'):
+    # TODO: In puppeteer, this will return the Response object from the new page load. Should do the same.
+    def reload(self, wait_until='load', timeout=30):
+        """Refresh the page.
+
+        Args:
+            wait_until (str, optional): When to consider the navigation as having succeeded. Defaults to "load".
+            timeout (int, optional): Maximum number of seconds to wait for the navigation to finish. Defaults to 30.
+        """
+        with self.wait_for_navigation(wait_until=wait_until, timeout=timeout):
             self.session.send('Page.reload')
 
     def query_selector(self, selector):
@@ -240,7 +251,7 @@ class Page:
         yield
         lifecycle_watcher.wait(timeout)
 
-    def wait_for_xpath(self, xpath_expr, visible=False, timeout=30):
+    def wait_for_xpath(self, xpath_expr, visible=False, hidden=False, timeout=30):
         """Pause execution until an element is present on the page.
 
         Args:
@@ -266,6 +277,10 @@ class Page:
                     visible_elements = [e for e in element_list if e.is_visible]
                     if len(visible_elements):
                         return visible_elements
+                elif hidden:
+                    hidden_elements = [e for e in element_list if not e.is_visible]
+                    if len(hidden_elements):
+                        return hidden_elements
                 else:
                     return element_list
             time.sleep(interval)

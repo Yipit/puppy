@@ -102,14 +102,25 @@ class Element(JSObject):
     def focus(self):
         return self._method('focus')
 
-    def click(self):
+    def click(self, button='left', click_count=1, delay=0):
         quads = self._page.session.send('DOM.getContentQuads', objectId=self._object_id)['quads'][0]
         mean_x = sum([quads[i] for i in range(0, len(quads), 2)]) / (len(quads) / 2)
         mean_y = sum([quads[i] for i in range(1, len(quads), 2)]) / (len(quads) / 2)
         # TODO: Move the mouse in natural steps
         self._page.session.send('Input.dispatchMouseEvent', type='mouseMoved', x=mean_x, y=mean_y)
-        self._page.session.send('Input.dispatchMouseEvent', type='mousePressed', x=mean_x, y=mean_y, button='left', clickCount=1)
-        self._page.session.send('Input.dispatchMouseEvent', type='mouseReleased', x=mean_x, y=mean_y, button='left', clickCount=1)
+        self._page.session.send('Input.dispatchMouseEvent',
+                                type='mousePressed',
+                                x=mean_x,
+                                y=mean_y,
+                                button=button,
+                                clickCount=click_count)
+        time.sleep(delay / 1000)
+        self._page.session.send('Input.dispatchMouseEvent',
+                                type='mouseReleased',
+                                x=mean_x,
+                                y=mean_y,
+                                button=button,
+                                clickCount=click_count)
 
     @property
     def is_visible(self):
