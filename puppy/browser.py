@@ -77,7 +77,7 @@ class Browser:
         return self.page
 
     def _wait_for_ws_endpoint(self, url, timeout=5):
-        PAUSE = 0.1
+        PAUSE = 0.01
         waited = 0.0
         while waited < timeout:
             try:

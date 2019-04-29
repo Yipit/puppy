@@ -16,7 +16,7 @@ MESSAGE_TIMEOUT = 300
 class Connection:
     def __init__(self, endpoint, debug=False):
         self.endpoint = endpoint
-        self.closed = False
+        self._connected = True
         self._ws = websocket.create_connection(self.endpoint, enable_multithread=True)
 
         self.messages = {}
@@ -43,13 +43,13 @@ class Connection:
         return session
 
     def _recv_loop(self):
-        while not self.closed:
+        while self._connected:
             try:
                 message_raw = self._ws.recv()
                 if self._debug:  # TODO: set up a logger and format this nicely
                     print('recieved -- ', message_raw[:1000])
             except WebSocketConnectionClosedException:
-                if self.closed:
+                if not self._connected:
                     continue
                 else:
                     raise
@@ -72,10 +72,9 @@ class Connection:
             # Events fired for this connection
             elif 'method' in message:
                 self.events_queue.put(message)
-        self._ws.close()
 
     def _handle_event_loop(self):
-        while not self.closed:
+        while self._connected:
             try:
                 event = self.events_queue.get(timeout=1)
             except queue.Empty:
@@ -99,9 +98,14 @@ class Connection:
         self.messages[id_] = {'event': event_}
         if self._debug:  # TODO: set up a logger and format this nicely
             print('sent -- ', json.dumps(message))
+
+        if not self._ws.connected:
+            raise BrowserError('Connection with browser is closed')
         self._ws.send(json.dumps(message))
+
         if not event_.wait(timeout=MESSAGE_TIMEOUT):
             raise BrowserError('Timed out waiting for response from browser')
+
         if 'error' in self.messages[id_]:
             raise BrowserError(self.messages[id_]['error'])
         else:
@@ -123,4 +127,6 @@ class Connection:
         return id_
 
     def close(self):
-        self.closed = True
+        self._connected = False
+        self._recv_thread.join()
+        self._handle_event_thread.join()
