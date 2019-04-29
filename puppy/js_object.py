@@ -1,6 +1,7 @@
 import json
+import time
 
-from .exceptions import BrowserError
+from .exceptions import BrowserError, PageError
 
 
 class JSObject:
@@ -24,7 +25,7 @@ class JSObject:
         args = [self]
         return self._remote_call(function, args)
 
-    def _remote_call(self, function, args):
+    def _remote_call(self, function, args, return_by_value=False):
         # I think this is right, but having trouble figuring out exactly what all these IDs mean
         args = self._convert_args(args)
         execution_context_id = json.loads(self._object_id)['injectedScriptId']
@@ -32,8 +33,14 @@ class JSObject:
             'Runtime.callFunctionOn',
             functionDeclaration=function,
             arguments=args,
-            executionContextId=execution_context_id
+            executionContextId=execution_context_id,
+            returnByValue=return_by_value
         )
+
+        # If the remote call raised and exception, raise it here
+        if 'exceptionDetails' in response:
+            raise PageError('Exception raised in remote javascript call: "{}"'
+                            .format(response['exceptionDetails']['exception']['description']))
 
         # If the result is a primitive value return that
         if 'value' in response['result']:
@@ -118,3 +125,22 @@ class Element(JSObject):
             [self]
         )
         return visibility != 'hidden' and has_visible_bounding_box
+
+    def select(self, *values):
+        script = '''
+            (element, values) => {
+                const options = Array.from(element.options);
+                element.value = undefined;
+                for (const option of element.options) {
+                    option.selected = values.includes(option.value);
+                    if (option.selected && !element.multiple) {
+                        break;
+                    }
+                }
+                element.dispatchEvent(new Event('input', {'bubbles': true}))
+                element.dispatchEvent(new Event('change', {'bubbles': true}))
+                return options.filter(option => option.selected).map(option => option.value)
+            }
+        '''
+        res = self._remote_call(script, [self, values], return_by_value=True)
+        return res

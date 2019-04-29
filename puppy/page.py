@@ -160,12 +160,7 @@ class Page:
         with self.wait_for_navigation(wait_until='load'):
             self.session.send('Page.reload')
 
-    @property
-    def requests(self):
-        """All the requests this page has made."""
-        return list(self._requests_by_url.values())
-
-    def select(self, selector):
+    def query_selector(self, selector):
         """Search the current page for elements matching a CSS selector.
 
         Args:
@@ -175,6 +170,30 @@ class Page:
             A list of Element objects representing the HTML nodes found on the page.
         """
         return self.document.querySelectorAll(selector)
+
+    @property
+    def requests(self):
+        """All the requests this page has made."""
+        return list(self._requests_by_url.values())
+
+    def select(self, selector, *values):
+        """Selects a list of options in a given HTML <select> element.
+
+        Args:
+            selector (str): A css selector used to locate the <select> element.
+            values (str, variable length): The values to select.
+
+        Returns:
+            A list of option values that have been successfully selected.
+
+        Raises:
+            PageError: If no element matching `selector` is found.
+        """
+        element_list = self.query_selector(selector)
+        if not len(element_list):
+            raise PageError('Element at {} not found'.format(selector))
+        element = element_list[0]
+        return element.select(*values)
 
     def type(self, xpath_expression, text, delay=0):
         """Give an element focus, then simulate a series of keyboard events.
