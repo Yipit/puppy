@@ -39,8 +39,8 @@ install_requires, dependency_links = parse_requirements()
 if __name__ == '__main__':
 
     setup(
-        name="puppy",
-        version='0.0.0',
+        name="browser-puppy",
+        version='0.0.1a1',
         description="Python client for Chrome Dev Tools Protocol",
         long_description=local_file('README.md'),
         author='Yipit Coders',
