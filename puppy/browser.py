@@ -64,7 +64,10 @@ class Browser:
         pages = [p for p in pages if p['type'] == 'page']
         if len(pages):
             for page in pages:
-                self._pages.append(Page(self.connection, page['id'], proxy_uri=self._proxy_uri))
+                self._pages.append(Page(self.connection,
+                                        page['id'],
+                                        self,
+                                        proxy_uri=self._proxy_uri))
             self.page = self._pages[0]
         else:
             self.page = self._new_page()
@@ -72,7 +75,10 @@ class Browser:
     def _new_page(self, url='about:blank'):
         response = self.connection.send('Target.createTarget', url=url)
         target_id = response['targetId']
-        self.page = Page(self.connection, target_id, proxy_uri=self._proxy_uri)
+        self.page = Page(self.connection,
+                         target_id,
+                         self,
+                         proxy_uri=self._proxy_uri)
         self._pages.append(self.page)
         return self.page
 
@@ -98,7 +104,12 @@ class Browser:
         shutil.rmtree(self._tmp_user_data_dir)
 
     def close(self):
-        self.connection.send('Browser.close')
+        try:
+            # Try to close browser the normal way
+            self.connection.send('Browser.close')
+        except BrowserError:
+            # If it doesn't respond, just terminate the process and clean the rest up
+            pass
         self.connection.close()
         self.process.terminate()
         if self._tmp_user_data_dir is not None:

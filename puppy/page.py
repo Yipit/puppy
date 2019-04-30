@@ -11,10 +11,11 @@ from .response import Response
 
 
 class Page:
-    def __init__(self, connection, target_id, proxy_uri=None):
+    def __init__(self, connection, target_id, browser, proxy_uri=None):
         self._proxy_uri = proxy_uri
         self._target_id = target_id
         self._connection = connection
+        self._browser = browser
         self._request_manager = RequestManager(self, self._proxy_uri)
 
         self.closed = False
@@ -38,6 +39,10 @@ class Page:
         self.session.on('Page.lifecycleEvent', self._on_lifecycle_event)
 
         self.session.on('Page.frameNavigated', self._on_frame_navigated)
+
+    @property
+    def browser(self):
+        return self._browser
 
     # Public API #
 

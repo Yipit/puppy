@@ -48,11 +48,10 @@ class Connection:
                 message_raw = self._ws.recv()
                 if self._debug:  # TODO: set up a logger and format this nicely
                     print('recieved -- ', message_raw[:1000])
+            # Will happen when this loop is still running after we close the browser.
+            # TODO: Think about the right way to handle this.
             except WebSocketConnectionClosedException:
-                if not self._connected:
-                    continue
-                else:
-                    raise
+                continue
             message = json.loads(message_raw)
 
             # Messages meant to be passed to some session
@@ -128,5 +127,5 @@ class Connection:
 
     def close(self):
         self._connected = False
-        self._recv_thread.join()
-        self._handle_event_thread.join()
+        self._recv_thread.join(timeout=5)  # Not sure there's a reason to try this
+        self._handle_event_thread.join(timeout=5)  # Not sure there's a reason to try this
