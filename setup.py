@@ -40,12 +40,12 @@ if __name__ == '__main__':
 
     setup(
         name="browser-puppy",
-        version='0.0.1a2',
+        version='0.0.1a3',
         description="Python client for Chrome Dev Tools Protocol",
         long_description=local_file('README.md'),
         author='Yipit Coders',
         author_email='coders@yipit.com',
-        url='https://github.com/Yipit/ypuppet',
+        url='https://github.com/Yipit/puppy',
         packages=find_packages(exclude=['*tests*']),
         install_requires=install_requires,
         include_package_data=True,
