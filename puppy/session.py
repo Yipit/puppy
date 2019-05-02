@@ -3,17 +3,14 @@ import queue
 
 from threading import Event, Thread
 
+from . import settings
 from .exceptions import BrowserError
-
-
-MESSAGE_TIMEOUT = 300
 
 
 class Session:
     def __init__(self, connection, session_id):
         self._connection = connection
         self._session_id = session_id
-        self.closed = False
 
         self.messages = {}
         self.events_queue = queue.Queue()
@@ -36,7 +33,7 @@ class Session:
             self.events_queue.put(message)
 
     def _handle_event_loop(self):
-        while not self.closed:
+        while self._connection and self._connection.connected:
             try:
                 event = self.events_queue.get(timeout=1)
             except queue.Empty:
@@ -57,7 +54,7 @@ class Session:
         self._connection.send('Target.sendMessageToTarget',
                               message=json.dumps(message),
                               sessionId=self._session_id)
-        if not event_.wait(timeout=MESSAGE_TIMEOUT):
+        if not event_.wait(timeout=settings.MESSAGE_TIMEOUT):
             raise BrowserError('Timed out waiting for response from browser')
         if 'error' in self.messages[id_]:
             raise BrowserError(self.messages[id_]['error'])
@@ -74,4 +71,6 @@ class Session:
         return id_
 
     def close(self):
-        self.closed = True
+        self.event_handlers.clear()
+        self._handle_event_loop = None
+        self._connection = None

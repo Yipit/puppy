@@ -6,17 +6,15 @@ from threading import Event, Thread
 import websocket
 from websocket._exceptions import WebSocketConnectionClosedException
 
+from . import settings
 from .exceptions import BrowserError
 from .session import Session
-
-
-MESSAGE_TIMEOUT = 300
 
 
 class Connection:
     def __init__(self, endpoint, debug=False):
         self.endpoint = endpoint
-        self._connected = True
+        self.connected = True
         self._ws = websocket.create_connection(self.endpoint, enable_multithread=True)
 
         self.messages = {}
@@ -43,7 +41,7 @@ class Connection:
         return session
 
     def _recv_loop(self):
-        while self._connected:
+        while self.connected:
             try:
                 message_raw = self._ws.recv()
                 if self._debug:  # TODO: set up a logger and format this nicely
@@ -73,7 +71,7 @@ class Connection:
                 self.events_queue.put(message)
 
     def _handle_event_loop(self):
-        while self._connected:
+        while self.connected:
             try:
                 event = self.events_queue.get(timeout=1)
             except queue.Empty:
@@ -91,18 +89,17 @@ class Connection:
 
     def _send(self, message):
         if 'id' not in message:
-            id_ = self.message_id()
+            id_ = self._next_message_id()
             message['id'] = id_
         event_ = Event()
         self.messages[id_] = {'event': event_}
         if self._debug:  # TODO: set up a logger and format this nicely
             print('sent -- ', json.dumps(message))
-
         if not self._ws.connected:
             raise BrowserError('Connection with browser is closed')
         self._ws.send(json.dumps(message))
 
-        if not event_.wait(timeout=MESSAGE_TIMEOUT):
+        if not event_.wait(timeout=settings.MESSAGE_TIMEOUT):
             raise BrowserError('Timed out waiting for response from browser')
 
         if 'error' in self.messages[id_]:
@@ -110,22 +107,20 @@ class Connection:
         else:
             return self.messages[id_]['result']
 
-    def _send_no_wait(self, message):
-        if 'id' not in message:
-            id_ = self.message_id()
-            message['id'] = id_
-        self._ws.send(json.dumps(message))
-
     def on(self, method, cb):
         self.event_handlers[method] = self.event_handlers.get(method, [])
         self.event_handlers[method].append(cb)
 
-    def message_id(self):
+    def _next_message_id(self):
         id_ = self._message_id
         self._message_id += 1
         return id_
 
     def close(self):
-        self._connected = False
-        self._recv_thread.join(timeout=5)  # Not sure there's a reason to try this
-        self._handle_event_thread.join(timeout=5)  # Not sure there's a reason to try this
+        self.connected = False
+        self._recv_loop = None
+        self._handle_event_loop = None
+        self._ws.close()
+        for session in self._sessions.values():
+            session.close()
+        self._sessions.clear()
