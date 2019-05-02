@@ -5,8 +5,9 @@ import subprocess
 import tempfile
 import time
 
-from urllib.parse import urlparse
-from urllib.request import urlopen, URLError
+from six.moves.urllib.parse import urlparse
+from six.moves.urllib.request import urlopen
+from six.moves.urllib.error import URLError
 
 from .chromium_downloader import download_chromium, get_executable_path
 from .connection import Connection

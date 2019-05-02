@@ -3,7 +3,8 @@ import stat
 import subprocess
 import sys
 
-from urllib.request import HTTPError, Request, urlretrieve, urlopen
+from six.moves.urllib.request import Request, urlretrieve, urlopen
+from six.moves.urllib.error import HTTPError
 from zipfile import ZipFile
 
 from appdirs import AppDirs

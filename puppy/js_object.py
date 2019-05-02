@@ -13,15 +13,15 @@ class JSObject:
         self._page = page
 
     def __repr__(self):
-        return f'<{self.__class__.__name__} {self._description}>'
+        return '<{} {}>'.format(self.__class__.__name__, self._description)
 
     def _method(self, method, *args):
-        function = f'(element, ...args) => element.{method}(...args)'
-        args = [self, *args]
+        function = '(element, ...args) => element.{method}(...args)'.format(method=method)
+        args = [self] + args
         return self._remote_call(function, args)
 
     def _prop(self, prop):
-        function = f'(element) => element.{prop}'
+        function = '(element) => element.{prop}'.format(prop=prop)
         args = [self]
         return self._remote_call(function, args)
 

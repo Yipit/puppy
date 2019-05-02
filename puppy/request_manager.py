@@ -1,4 +1,4 @@
-from urllib.parse import urlparse
+from six.moves.urllib.parse import urlparse
 
 
 class RequestManager:

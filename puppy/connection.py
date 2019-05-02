@@ -1,6 +1,6 @@
 import json
-import queue
 
+from six.moves import queue
 from threading import Event, Thread
 
 import websocket
