@@ -88,6 +88,44 @@ class Page:
         """
         return self.document._prop('documentElement').html
 
+    def cookies(self, urls=None):
+        """Return cookies for the current page, or for the given list of `urls`
+
+        Args:
+            urls: (list, optional): The urls to match when retrieving cookies. If not provided, the page's
+                current url is used.
+
+        Returns:
+            A list of dictionaries with the following keys:
+                - name (str)
+                - value (str)
+                - domain (str)
+                - path (str)
+                - expires (int, Unix timestamp in seconds)
+                - http_only (bool)
+                - secure (bool)
+                - session (bool)
+        """
+        if urls is None:
+            response = self.session.send('Network.getCookies')
+        else:
+            response = self.session.send('Network.getCookies', urls=urls)
+        return [{
+            'name': c.get('name'),
+            'value': c.get('value'),
+            'domain': c.get('domain'),
+            'path': c.get('path'),
+            'expires': c.get('expires'),
+            'http_only': c.get('httpOnly'),
+            'secure': c.get('secure'),
+            'session': c.get('session')
+        } for c in response['cookies']]
+
+    def get_cookies_dict(self, urls=None):
+        """Helper method to return as a dictionary in the format {`name`: `value`, `name`: `value`, etc.}"""
+        raw_cookies = self.cookies(urls)
+        return {r['name']: r['value'] for r in raw_cookies}
+
     def create_devtools_session(self):
         """Create a new session to send messages to the running Chrome devtools server."""
         return self._connection.new_session(self._target_id)
