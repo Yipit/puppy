@@ -24,7 +24,9 @@ class Browser:
                  user_data_dir=None,
                  executable_path=None,
                  debug=False,
-                 args=None):
+                 args=None,
+                 page_class=None):
+        self._PAGE_CLASS = page_class or Page
         if not executable_path:
             executable_path = get_executable_path()
             if not os.path.exists(executable_path):
@@ -65,10 +67,10 @@ class Browser:
         pages = [p for p in pages if p['type'] == 'page']
         if len(pages):
             for page in pages:
-                self._pages.append(Page(self.connection,
-                                        page['id'],
-                                        self,
-                                        proxy_uri=self._proxy_uri))
+                self._pages.append(self._PAGE_CLASS(self.connection,
+                                                    page['id'],
+                                                    self,
+                                                    proxy_uri=self._proxy_uri))
             self.page = self._pages[0]
         else:
             self.page = self._new_page()
@@ -76,10 +78,10 @@ class Browser:
     def _new_page(self, url='about:blank'):
         response = self.connection.send('Target.createTarget', url=url)
         target_id = response['targetId']
-        self.page = Page(self.connection,
-                         target_id,
-                         self,
-                         proxy_uri=self._proxy_uri)
+        self.page = self._PAGE_CLASS(self.connection,
+                                     target_id,
+                                     self,
+                                     proxy_uri=self._proxy_uri)
         self._pages.append(self.page)
         return self.page
 
