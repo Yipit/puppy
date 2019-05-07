@@ -22,3 +22,7 @@ release: clean
 		echo "That's the right place to configure 'pypi' repos.\n"; \
 		exit 1; \
 	fi
+
+setup: clean
+	@echo "Installing dependencies..."; \
+	pip install --quiet -r development.txt;
