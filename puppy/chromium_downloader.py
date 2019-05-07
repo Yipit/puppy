@@ -1,4 +1,5 @@
 import os
+import six
 import stat
 import subprocess
 import sys
@@ -53,7 +54,11 @@ def _get_download_url(platform):
     for rev in range(CHROMIUM_REVISION, REVISION_MAX + 1):
         try:
             url = url_template.format(revision=rev)
-            request = Request(url, method='HEAD')
+            if six.PY3:
+                request = Request(url, method='HEAD')
+            else:
+                request = Request(url)
+                request.get_method = lambda: 'HEAD'
             urlopen(request)
             return url
         except HTTPError:
@@ -87,15 +92,25 @@ def download_chromium():
 
     print('Extracting zip file')
     if platform == 'mac':
-        proc = subprocess.run(
-            ['unzip', zip_path],
-            cwd=destination,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT
-        )
-        if proc.returncode != 0:
-            print(proc.stdout.decode())
-            raise IOError('Failed to extract chromium zip')
+        if six.PY3:
+            proc = subprocess.run(
+                ['unzip', zip_path],
+                cwd=destination,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT
+            )
+            if proc.returncode != 0:
+                print(proc.stdout.decode())
+                raise IOError('Failed to extract chromium zip')
+        else:
+            returncode = subprocess.call(
+                ['unzip', zip_path],
+                cwd=destination,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT
+            )
+            if returncode != 0:
+                raise IOError('Failed to extract chromium zip')
 
         if not os.path.exists(exec_path):
             raise IOError('Failed to extract chromium zip')

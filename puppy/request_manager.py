@@ -5,9 +5,13 @@ class RequestManager:
     def __init__(self, page, proxy_uri):
         self._page = page
         self._proxy_uri = proxy_uri
-        parsed_proxy_uri = urlparse(self._proxy_uri)
-        self._proxy_username = parsed_proxy_uri.username
-        self._proxy_password = parsed_proxy_uri.password
+        if self._proxy_uri:
+            parsed_proxy_uri = urlparse(self._proxy_uri)
+            self._proxy_username = parsed_proxy_uri.username
+            self._proxy_password = parsed_proxy_uri.password
+        else:
+            self._proxy_username = None
+            self._proxy_password = None
         self._blacklisted_url_patterns = []
         self._blacklisted_resource_types = []
         self._session = self._page.create_devtools_session()
