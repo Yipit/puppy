@@ -71,6 +71,10 @@ class Session:
         return id_
 
     def close(self):
+        for message in self.messages.values():
+            if not message['event'].is_set():
+                message['result'] = None
+                message['event'].set()
         self.event_handlers.clear()
         self._handle_event_loop = None
         self._connection = None

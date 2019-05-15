@@ -95,12 +95,23 @@ class Connection:
         self.messages[id_] = {'event': event_}
         if self._debug:  # TODO: set up a logger and format this nicely
             print('sent -- ', json.dumps(message))
-        if not self._ws.connected:
+
+        # if the WS connection is closed and we didn't intentional close this connection
+        if self.connected and not self._ws.connected:
             raise BrowserError('Connection with browser is closed')
+
+        if not self.connected:
+            if self._debug:
+                print('Connection manually closed, aborting')
+            return
+
         self._ws.send(json.dumps(message))
 
         if not event_.wait(timeout=settings.MESSAGE_TIMEOUT):
             raise BrowserError('Timed out waiting for response from browser')
+
+        if message['method'] == 'Browser.close':
+            self._on_closed()
 
         if 'error' in self.messages[id_]:
             raise BrowserError(self.messages[id_]['error'])
@@ -116,11 +127,17 @@ class Connection:
         self._message_id += 1
         return id_
 
-    def close(self):
+    def _on_closed(self):
         self.connected = False
-        self._recv_loop = None
-        self._handle_event_loop = None
-        self._ws.close()
+
+        for message in self.messages.values():
+            if not message['event'].is_set():
+                message['result'] = None
+                message['event'].set()
+
         for session in self._sessions.values():
             session.close()
+
+        self._recv_loop = None
+        self._handle_event_loop = None
         self._sessions.clear()

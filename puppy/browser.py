@@ -144,7 +144,6 @@ class Browser:
         except BrowserError:
             # If it doesn't respond, just terminate the process and clean the rest up
             pass
-        self.connection.close()
         self.process.terminate()
         if self._tmp_user_data_dir is not None:
             self._clear_temp_user_data_dir()
