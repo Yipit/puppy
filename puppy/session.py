@@ -76,5 +76,3 @@ class Session:
                 message['result'] = None
                 message['event'].set()
         self.event_handlers.clear()
-        self._handle_event_loop = None
-        self._connection = None

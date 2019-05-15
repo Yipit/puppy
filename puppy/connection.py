@@ -137,7 +137,3 @@ class Connection:
 
         for session in self._sessions.values():
             session.close()
-
-        self._recv_loop = None
-        self._handle_event_loop = None
-        self._sessions.clear()
