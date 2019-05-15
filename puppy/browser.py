@@ -16,6 +16,32 @@ from .page import Page
 from .utils import get_free_port
 
 
+DEFAULT_ARGS = [
+  '--disable-background-networking',
+  '--enable-features=NetworkService,NetworkServiceInProcess',
+  '--disable-background-timer-throttling',
+  '--disable-backgrounding-occluded-windows',
+  '--disable-breakpad',
+  '--disable-client-side-phishing-detection',
+  '--disable-default-apps',
+  '--disable-dev-shm-usage',
+  '--disable-extensions',
+  '--disable-features=site-per-process,TranslateUI,BlinkGenPropertyTrees',
+  '--disable-hang-monitor',
+  '--disable-ipc-flooding-protection',
+  '--disable-popup-blocking',
+  '--disable-prompt-on-repost',
+  '--disable-renderer-backgrounding',
+  '--disable-sync',
+  '--force-color-profile=srgb',
+  '--metrics-recording-only',
+  '--no-first-run',
+  '--enable-automation',
+  '--password-store=basic',
+  '--use-mock-keychain',
+]
+
+
 class Browser:
     def __init__(self,
                  headless=True,
@@ -25,6 +51,7 @@ class Browser:
                  executable_path=None,
                  debug=False,
                  args=None,
+                 ignore_default_args=False,
                  page_class=None):
         self._PAGE_CLASS = page_class or Page
         if not executable_path:
@@ -38,14 +65,18 @@ class Browser:
             '--remote-debugging-port={}'.format(self._port)
         ]
 
+        chrome_args = [] if ignore_default_args else DEFAULT_ARGS
+
         if args is not None:
-            cmd.extend(args)
+            chrome_args.extend(args)
 
-        if headless is True:
-            cmd.append('--headless')
+        if headless is True and '--headless' not in chrome_args:
+            chrome_args.append('--headless')
 
-        if user_agent is not None:
-            cmd.append('--user-agent={}'.format(user_agent))
+        if user_agent is not None and not any([a.startswith('--user-agent=') for a in chrome_args]):
+            chrome_args.append('--user-agent={}'.format(user_agent))
+
+        cmd.extend(chrome_args)
 
         self._tmp_user_data_dir = None
         if user_data_dir is None:
