@@ -40,7 +40,7 @@ if __name__ == '__main__':
 
     setup(
         name="browser-puppy",
-        version='0.0.1a3',
+        version='0.0.1a4',
         description="Python client for Chrome Dev Tools Protocol",
         long_description=local_file('README.md'),
         author='Yipit Coders',
