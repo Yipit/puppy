@@ -350,11 +350,24 @@ class Page:
         """
         return self.document.xpath(expression)
 
-    def blacklist_url_patterns(self, *args):
-        self._request_manager.blacklist_url_patterns(*args)
+    def blacklist_url_patterns(self, url_patterns):
+        self._request_manager.blacklist_url_patterns(url_patterns)
 
     def blacklist_resource_types(self, *args):
         self._request_manager.blacklist_resource_types(*args)
+
+    def get_responses(self, urls=None):
+        responses = [request.response for request in self._requests_by_url.values() if request.response]
+
+        if urls is None:
+            return responses
+
+        matching_responses = []
+        for response in responses:
+            for url in urls:
+                if url in response.url:
+                    matching_responses.append(response)
+        return matching_responses
 
     # Private methods
     def _on_request_will_be_sent(self, **kwargs):

@@ -18,8 +18,8 @@ class RequestManager:
         self._session.send('Network.setRequestInterception', patterns=[{'urlPattern': '*'}])
         self._session.on('Network.requestIntercepted', self._on_request_intercepted)
 
-    def blacklist_urls(self, *args):
-        self._blacklisted_url_patterns.extend(args)
+    def blacklist_url_patterns(self, url_patterns):
+        self._blacklisted_url_patterns.extend(url_patterns)
 
     def blacklist_resource_types(self, *args):
         self._blacklisted_resource_types.extend(args)
