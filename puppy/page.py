@@ -126,9 +126,18 @@ class Page:
         raw_cookies = self.cookies(urls)
         return {r['name']: r['value'] for r in raw_cookies}
 
-    def create_devtools_session(self):
-        """Create a new session to send messages to the running Chrome devtools server."""
-        return self._connection.new_session(self._target_id)
+    def create_devtools_session(self, raise_on_closed_connection=True):
+        """Create a new session to send messages to the running Chrome devtools server.
+
+        Args:
+            raise_on_closed_connection (bool, optional): Whether or not raise an error if an attempt is made
+                to send a message after the connection with the browser is closed. Defaults to True. Setting
+                to False is useful for sessions that will process background tasks, like the RequestManager.
+
+        Returns:
+            a Session object.
+        """
+        return self._connection.new_session(self._target_id, raise_on_closed_connection=raise_on_closed_connection)
 
     @property
     def document(self):

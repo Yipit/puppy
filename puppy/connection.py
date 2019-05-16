@@ -33,10 +33,10 @@ class Connection:
 
         self._debug = debug
 
-    def new_session(self, target_id):
+    def new_session(self, target_id, raise_on_closed_connection=True):
         response = self.send('Target.attachToTarget', targetId=target_id)
         session_id = response['sessionId']
-        session = Session(self, session_id)
+        session = Session(self, session_id, raise_on_closed_connection=raise_on_closed_connection)
         self._sessions[session_id] = session
         return session
 
