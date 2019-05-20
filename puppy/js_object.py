@@ -15,9 +15,39 @@ class JSObject:
     def __repr__(self):
         return '<{} {}>'.format(self.__class__.__name__, self._description)
 
+    @property
+    def description(self):
+        return self._description
+
+    @property
+    def object_id(self):
+        return self._object_id
+
+    def get_property(self, property_name):
+        return self._prop(property_name)
+
+    def get_properties(self):
+        response = self._page.session.send('Runtime.getProperties', objectId=self.object_id, ownProperties=True)
+        result = {}
+        for prop in response['result']:
+            prop_name = prop['name']
+            prop_value = prop['value']
+
+            # TODO: This logic is getting repeated a few times
+            if 'value' in prop_value:
+                result[prop_name] = prop_value['value']
+            elif prop_value['type'] == 'object':
+                if prop_value.get('subtype') == 'node':
+                    result[prop_name] = Element(prop_value['objectId'], prop_value['description'], self._page)
+                else:
+                    result[prop_name] = JSObject(prop_value['objectId'], prop_value['description'], self._page)
+            elif prop_value['type'] == 'undefined':
+                result[prop_name] = None
+        return result
+
     def _method(self, method, *args):
         function = '(element, ...args) => element.{method}(...args)'.format(method=method)
-        args = [self] + args
+        args = [self] + list(args)
         return self._remote_call(function, args)
 
     def _prop(self, prop):

@@ -3,7 +3,7 @@ import time
 from contextlib import contextmanager
 
 from .exceptions import BrowserError, PageError
-from .js_object import Element
+from .js_object import Element, JSObject
 from .lifecycle_watcher import LifecycleWatcher
 from .request import Request
 from .request_manager import RequestManager
@@ -142,8 +142,7 @@ class Page:
     @property
     def document(self):
         """An Element representing the current page's `document` object."""
-        response = self.evaluate('document')
-        return Element(response['objectId'], response['description'], self)
+        return self.evaluate('document')
 
     def evaluate(self, expression):
         """Send an expression to be evaluated in the browser's JavaScript console.
@@ -159,8 +158,10 @@ class Page:
         response = self.session.send('Runtime.evaluate', expression=expression)
         if 'value' in response['result']:
             return response['result']['value']
+        elif response['result'].get('subtype') == 'node':
+            return Element(response['result']['objectId'], response['result'].get('description'), self)
         else:
-            return response['result']
+            return JSObject(response['result']['objectId'], response['result'].get('description'), self)
 
     def evaluate_on_new_document(self, script):
         """Set a script to be evaluated on each new page visiti.
