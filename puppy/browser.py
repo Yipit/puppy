@@ -52,6 +52,7 @@ class Browser:
                  debug=False,
                  args=None,
                  ignore_default_args=False,
+                 no_sandbox=False,
                  page_class=None):
         self._PAGE_CLASS = page_class or Page
         if not executable_path:
@@ -75,6 +76,9 @@ class Browser:
 
         if user_agent is not None and not any([a.startswith('--user-agent=') for a in chrome_args]):
             chrome_args.append('--user-agent={}'.format(user_agent))
+
+        if no_sandbox and '--no-sandbox' not in chrome_args:
+            chrome_args.append('--no-sandbox')
 
         cmd.extend(chrome_args)
 
