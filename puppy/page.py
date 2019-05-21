@@ -192,8 +192,7 @@ class Page:
         lifecyle_watcher = LifecycleWatcher(self, wait_until)
         self.session.send('Page.navigate', url=url)
         lifecyle_watcher.wait(timeout)
-        if self._navigation_url in self._requests_by_url:
-            return self._requests_by_url[self._navigation_url].response
+        return self._wait_for_response(self._navigation_url, timeout=3)
 
     def focus(self, xpath_expression):
         """Focus an element on the page.
@@ -396,3 +395,14 @@ class Page:
         if is_main_frame:
             self._frame_id = kwargs['frame']['id']
             self._navigation_url = kwargs['frame']['url']
+
+    def _wait_for_response(self, url, timeout, force=False):
+        waited = 0
+        delay = 0.001
+        while waited < timeout:
+            if url in self._requests_by_url and self._requests_by_url[url].response:
+                return self._requests_by_url[url].response
+            time.sleep(delay)
+            waited += delay
+        if force:
+            raise PageError('Timed out waiting for response; url: {}'.format(url))
