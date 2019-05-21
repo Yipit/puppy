@@ -27,7 +27,5 @@ setup: clean
 	@echo "Installing dependencies..."; \
 	pip install --quiet -r development.txt;
 
-acceptance:
-	@py.test -v tests/acceptance
-
-test: acceptance
+test:
+	@py.test --cov=puppy -v tests/
