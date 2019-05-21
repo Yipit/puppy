@@ -4,9 +4,41 @@
 #
 version: 2.1
 jobs:
-  build:
+  "run-tests":
     docker:
-      - image: circleci/python:3.6.1
+      - image: circleci/python:3.6.5
     steps:
       - checkout
-      - run: echo "hello world"
+      - setup_remote_docker:
+          docker_layer_caching: true
+
+      - run:
+          name: setup environment variables
+          command: |
+            echo 'export NO_SANDBOX_CHROME=1' >> $BASH_ENV
+
+      - run:
+          name: install dependencies
+          command: |
+            python3 -m venv ../venv
+            . ../venv/bin/activate
+            pip install -r development.txt
+            sudo apt-get update && sudo apt-get install -y libxtst6 libnss3 libasound2 libatk-bridge2.0-0 libgtk-3-0
+            python -c 'import puppy.chromium_downloader; puppy.chromium_downloader.download_chromium()'
+
+      - save_cache:
+          paths:
+            - ../venv
+          key: v1-dependencies-{{ checksum "requirements.txt" }}-{{ checksum "development.txt" }}
+
+      - run:
+          name: run tests
+          command: |
+            . ../venv/bin/activate
+            make test
+
+workflows:
+  version: 2
+  build:
+    jobs:
+      - "run-tests"

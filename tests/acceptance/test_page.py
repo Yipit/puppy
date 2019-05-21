@@ -2,6 +2,7 @@ import pytest
 import pytest_httpbin
 
 from contextlib import contextmanager
+from envelop import Environment
 from unittest import TestCase
 
 from puppy import Browser
@@ -9,12 +10,16 @@ from puppy.exceptions import PageError
 from puppy.js_object import JSObject, Element
 
 
+env = Environment()
+
+
 @pytest_httpbin.use_class_based_httpbin
 class PageCase(TestCase):
     @contextmanager
     def _page_context(self, headless=True):
+        browser_args = ['--no-sandbox'] if env.get_bool('NO_SANDBOX_CHROME') else None
         try:
-            browser = Browser(headless=headless)
+            browser = Browser(headless=headless, args=browser_args)
             yield browser.page
         finally:
             browser.close()
