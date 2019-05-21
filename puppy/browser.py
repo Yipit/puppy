@@ -65,7 +65,7 @@ class Browser:
             '--remote-debugging-port={}'.format(self._port)
         ]
 
-        chrome_args = [] if ignore_default_args else DEFAULT_ARGS
+        chrome_args = [] if ignore_default_args else DEFAULT_ARGS.copy()
 
         if args is not None:
             chrome_args.extend(args)
