@@ -1,6 +1,7 @@
 import time
 
 from contextlib import contextmanager
+from threading import Event
 
 from .exceptions import BrowserError, PageError
 from .js_object import Element, JSObject
@@ -27,6 +28,7 @@ class Page:
         self._loader_id = None
         self._frame_id = None
         self._navigation_url = None
+        self._navigation_event = Event()
 
         self.session = self.create_devtools_session()
 
@@ -190,8 +192,10 @@ class Page:
             The response recieved for the navigation request.
         """
         lifecyle_watcher = LifecycleWatcher(self, wait_until)
+        self._navigation_event.clear()
         self.session.send('Page.navigate', url=url)
         lifecyle_watcher.wait(timeout)
+        self._navigation_event.wait(timeout=3)  # make sure the frameNavigated event fires before getting the response
         return self._wait_for_response(self._navigation_url, timeout=3)
 
     def focus(self, xpath_expression):
@@ -395,6 +399,7 @@ class Page:
         if is_main_frame:
             self._frame_id = kwargs['frame']['id']
             self._navigation_url = kwargs['frame']['url']
+            self._navigation_event.set()
 
     def _wait_for_response(self, url, timeout, force=False):
         waited = 0
