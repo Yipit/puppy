@@ -1,3 +1,4 @@
+import json
 import pytest
 import pytest_httpbin
 
@@ -115,3 +116,79 @@ class PageCase(TestCase):
             # ... A PageError is raised
             with pytest.raises(PageError):
                 page.type('*//input[@type="does-not-exist"]', 'i have typed')
+
+    def test_wait_for_xpath(self):
+        with page_context() as page:
+            page.goto(self.httpbin + '/html')
+
+            # JS script to create a new div, pause 5 seconds asyncronously, and add it to the dom
+            page.evaluate('''
+                newElement = document.createElement('div')
+                newElement.id = 'new-element'
+                newElement.textContent = 'I am a new element'
+                setTimeout(function() {
+                    document.body.appendChild(newElement)
+            }, 5000)
+            ''')
+
+            elements = page.xpath('*//div[@id="new-element"]')
+            self.assertEqual(len(elements), 0)  # element should not be there yet
+
+            # When I call page.wait_for_xpath, the code will wait until one or more matching elemnts appear and return them
+            elements = page.wait_for_xpath('*//div[@id="new-element"]')
+            self.assertIsInstance(elements, list)
+            self.assertIsInstance(elements[0], Element)
+            self.assertEqual(elements[0].get_property('id'), 'new-element')
+            self.assertEqual(elements[0].text, 'I am a new element')
+
+            # If I specify visible=True and there are no matching visible elements, I get an error
+            page.evaluate('''
+                invisibleHeader = document.createElement('h1')
+                invisibleHeader.className = 'new-header'
+                invisibleHeader.textContent = 'I am not visible'
+                invisibleHeader.style['visibility'] = 'hidden'
+                setTimeout(function() {
+                    document.body.appendChild(invisibleHeader)
+            }, 0)
+            ''')
+            with pytest.raises(PageError, match=r'Timed out waiting for element'):
+                elements = page.wait_for_xpath('*//h1[@class="new-header"]', visible=True, timeout=3)
+
+            # And if there are visible elements, only those are returned
+            page.evaluate('''
+                visibleHeader = document.createElement('h1')
+                visibleHeader.className = 'new-header'
+                visibleHeader.textContent = 'I am visible'
+                setTimeout(function() {
+                    document.body.appendChild(visibleHeader)
+            }, 0)
+            ''')
+            elements = page.wait_for_xpath('*//h1[@class="new-header"]', visible=True, timeout=3)
+            self.assertEqual(len(elements), 1)
+            self.assertEqual(elements[0].text, 'I am visible')
+
+            # But if I specify hidden=True, only hidden elements are returned
+            elements = page.wait_for_xpath('*//h1[@class="new-header"]', hidden=True, timeout=3)
+            self.assertEqual(len(elements), 1)
+            self.assertEqual(elements[0].text, 'I am not visible')
+
+    def test_dom_interaction(self):
+        with page_context() as page:
+            # When I visit a page...
+            page.goto(self.httpbin + '/forms/post')
+            # ... I can enter data into input boxes...
+            page.type('*//input[@name="custname"]', 'YipitData')
+            page.type('*//input[@name="custtel"]', '212-555-1234')
+            # ... and click on form elements and buttons...
+            page.click('*//input[@name="size"][@value="large"]')
+            page.click('*//input[@name="topping"][@value="bacon"]')
+            page.click('*//input[@name="topping"][@value="cheese"]')
+            # ... and I can pause my code while a navigation event happens
+            with page.wait_for_navigation():
+                page.click('*//button[contains(text(), "Submit order")]')
+            self.assertEqual(page.url(), self.httpbin + '/post')
+            data = json.loads(page.xpath('*//pre')[0].text)
+            self.assertEqual(data['form']['custname'], 'YipitData')
+            self.assertEqual(data['form']['custtel'], '212-555-1234')
+            self.assertEqual(data['form']['size'], 'large')
+            self.assertEqual(data['form']['topping'], ['bacon', 'cheese'])
