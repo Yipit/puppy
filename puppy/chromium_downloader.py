@@ -12,9 +12,9 @@ from appdirs import AppDirs
 
 
 # TODO: keep these up to date
-CHROMIUM_REVISION = 624087
-REVISION_MAX = 624090
-REVISION_MIN = 624080
+CHROMIUM_REVISION = 662092
+REVISION_MIN = 662082
+REVISION_MAX = 662102
 
 BASE_URL = 'https://storage.googleapis.com/chromium-browser-snapshots'
 DOWNLOAD_URLS = {
