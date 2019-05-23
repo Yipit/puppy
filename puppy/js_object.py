@@ -64,7 +64,8 @@ class JSObject:
             functionDeclaration=function,
             arguments=args,
             executionContextId=execution_context_id,
-            returnByValue=return_by_value
+            returnByValue=return_by_value,
+            awaitPromise=True
         )
 
         # If the remote call raised and exception, raise it here
@@ -132,7 +133,32 @@ class Element(JSObject):
     def focus(self):
         return self._method('focus')
 
+    def _scroll_into_view_if_needed(self):
+        # This is how puppeteer does it
+        self._remote_call(
+            '''
+            async (element) => {
+                if (!element.isConnected) {
+                    throw new Error('Node is detached from document')
+                }
+                const visibleRatio = await new Promise(resolve => {
+                    const observer = new IntersectionObserver(entries => {
+                        resolve(entries[0].intersectionRatio)
+                        observer.disconnect()
+                    })
+                    observer.observe(element)
+                })
+                if (visibleRatio != 1.0) {
+                    element.scrollIntoView({block: 'center', inline: 'center', behavior: 'instant'})
+                }
+                return false
+            }
+            ''',
+            [self]
+        )
+
     def click(self, button='left', click_count=1, delay=0):
+        self._scroll_into_view_if_needed()
         quads = self._page.session.send('DOM.getContentQuads', objectId=self._object_id)['quads'][0]
         mean_x = sum([quads[i] for i in range(0, len(quads), 2)]) / (len(quads) / 2)
         mean_y = sum([quads[i] for i in range(1, len(quads), 2)]) / (len(quads) / 2)
