@@ -8,10 +8,9 @@ from .exceptions import BrowserError
 
 
 class Session:
-    def __init__(self, connection, session_id, raise_on_closed_connection=True):
+    def __init__(self, connection, session_id):
         self._connection = connection
         self._session_id = session_id
-        self._raise_on_closed_connection = raise_on_closed_connection
 
         self.messages = {}
         self.events_queue = queue.Queue()
@@ -48,18 +47,10 @@ class Session:
 
     def send(self, method, **kwargs):
         cleaned_kwargs = {k: v for k, v in kwargs.items() if v is not None}
-        message = {'method': method, 'params': cleaned_kwargs}
         id_ = self.message_id()
-        message['id'] = id_
+        message = {'id': id_, 'method': method, 'params': cleaned_kwargs}
         event_ = Event()
         self.messages[id_] = {'event': event_}
-
-        if not self._connection.connected:
-            if self._raise_on_closed_connection:
-                raise BrowserError('Connection is already closed')
-            else:
-                return None
-
         self._connection.send('Target.sendMessageToTarget',
                               message=json.dumps(message),
                               sessionId=self._session_id)

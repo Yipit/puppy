@@ -40,7 +40,7 @@ class Connection:
     def new_session(self, target_id, raise_on_closed_connection=True):
         response = self.send('Target.attachToTarget', targetId=target_id)
         session_id = response['sessionId']
-        session = Session(self, session_id, raise_on_closed_connection=raise_on_closed_connection)
+        session = Session(self, session_id)
         self._sessions[session_id] = session
         return session
 
@@ -50,8 +50,8 @@ class Connection:
                 message_raw = self._ws.recv()
                 logger.debug('RECV - %s' % message_raw[:1000])
             # Will happen when this loop is still running after we close the browser.
-            # TODO: Think about the right way to handle this.
-            except WebSocketConnectionClosedException:
+            except WebSocketConnectionClosedException as e:
+                logger.debug(e)
                 continue
             message = json.loads(message_raw)
 
@@ -87,25 +87,16 @@ class Connection:
             self.events_queue.task_done()
 
     def send(self, method, **kwargs):
-        message = {'method': method, 'params': kwargs}
-        return self._send(message)
-
-    def _send(self, message):
-        if 'id' not in message:
-            id_ = self._next_message_id()
-            message['id'] = id_
+        id_ = self._next_message_id()
+        message = {'id': id_, 'method': method, 'params': kwargs}
         event_ = Event()
         self.messages[id_] = {'event': event_}
 
         logger.debug('SEND - %s' % json.dumps(message))
 
         # if the WS connection is closed and we didn't intentional close this connection
-        if self.connected and not self._ws.connected:
+        if not self._ws.connected:
             raise BrowserError('Connection with browser is closed')
-
-        if not self.connected:
-            logger.debug('Connection manually closed, aborting')
-            return
 
         self._ws.send(json.dumps(message))
 
