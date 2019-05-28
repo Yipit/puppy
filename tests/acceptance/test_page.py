@@ -14,7 +14,6 @@ from ..test_helpers import page_context
 class PageCase(TestCase):
 
     def test_goto(self):
-        # TODO: seems response here is often None, could be a problem with goto
         with page_context() as page:
             # When I call page.goto...
             response = page.goto(self.httpbin + '/status/200')
@@ -30,6 +29,18 @@ class PageCase(TestCase):
             page.goto(self.httpbin + '/html')
             content = page.content()
             self.assertIn('<h1>Herman Melville - Moby-Dick</h1>', content)  # good enough?
+
+    def test_reload(self):
+        with page_context() as page:
+            response = page.goto(self.httpbin + '/status/200')
+            self.assertEqual(response.status, 200)
+            self.assertEqual(response.status_text, 'OK')
+            self.assertEqual(response.url, self.httpbin + '/status/200')
+
+            reload_response = page.reload()
+            self.assertEqual(reload_response.status, 200)
+            self.assertEqual(reload_response.status_text, 'OK')
+            self.assertEqual(reload_response.url, self.httpbin + '/status/200')
 
     def test_evaluate(self):
         with page_context() as page:

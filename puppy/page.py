@@ -219,7 +219,6 @@ class Page:
             raise PageError('Element with xpath %s does not exist' % xpath_expression)
         element_list[0].focus()
 
-    # TODO: In puppeteer, this will return the Response object from the new page load. Should do the same.
     def reload(self, wait_until='load', timeout=30):
         """Refresh the page.
 
@@ -227,8 +226,11 @@ class Page:
             wait_until (str, optional): When to consider the navigation as having succeeded. Defaults to "load".
             timeout (int, optional): Maximum number of seconds to wait for the navigation to finish. Defaults to 30.
         """
+        self._navigation_event.clear()
         with self.wait_for_navigation(wait_until=wait_until, timeout=timeout):
             self.session.send('Page.reload')
+        self._navigation_event.wait(timeout=3)
+        return self._wait_for_response(self._navigation_url, timeout=3)
 
     def query_selector(self, selector):
         """Search the current page for elements matching a CSS selector.
