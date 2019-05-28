@@ -192,3 +192,10 @@ class PageCase(TestCase):
             self.assertEqual(data['form']['custtel'], '212-555-1234')
             self.assertEqual(data['form']['size'], 'large')
             self.assertEqual(data['form']['topping'], ['bacon', 'cheese'])
+
+    def test_set_extra_http_headers(self):
+        with page_context() as page:
+            page.set_extra_http_headers({'X-Requested-By': 'YipitData'})
+            response = page.goto(self.httpbin + '/headers')
+            data = json.loads(response.text())
+            self.assertEqual(data.get('headers', {}).get('X-Requested-By'), 'YipitData')

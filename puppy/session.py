@@ -47,7 +47,8 @@ class Session:
             self.events_queue.task_done()
 
     def send(self, method, **kwargs):
-        message = {'method': method, 'params': kwargs}
+        cleaned_kwargs = {k: v for k, v in kwargs.items() if v is not None}
+        message = {'method': method, 'params': cleaned_kwargs}
         id_ = self.message_id()
         message['id'] = id_
         event_ = Event()

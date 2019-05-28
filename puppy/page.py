@@ -175,11 +175,12 @@ class Page:
         """
         self.session.send('Page.addScriptToEvaluateOnNewDocument', source=script)
 
-    # TODO: implement referer
+    # TODO: referrer is not tested
     def goto(self,
              url,
              timeout=30,
-             wait_until='load'):
+             wait_until='load',
+             referrer=None):
         """Visit a url.
 
         Args:
@@ -192,7 +193,10 @@ class Page:
         """
         lifecyle_watcher = LifecycleWatcher(self, wait_until)
         self._navigation_event.clear()
-        self.session.send('Page.navigate', url=url)
+        referrer = (referrer or
+                    self._request_manager.extra_http_headers.get('Referer') or
+                    self._request_manager.extra_http_headers.get('referer'))
+        self.session.send('Page.navigate', url=url, referrer=referrer)
         lifecyle_watcher.wait(timeout)
         self._navigation_event.wait(timeout=3)  # make sure the frameNavigated event fires before getting the response
         return self._wait_for_response(self._navigation_url, timeout=3)
@@ -260,6 +264,17 @@ class Page:
             raise PageError('Element at {} not found'.format(selector))
         element = element_list[0]
         return element.select(*values)
+
+    def set_extra_http_headers(self, headers):
+        """Define additional headers to be sent with every network request.
+
+        Args:
+            headers (dict): Additional headers to be added.
+
+        Returns:
+            None.
+        """
+        self._request_manager.set_extra_http_headers(headers)
 
     def type(self, xpath_expression, text, delay=0):
         """Give an element focus, then simulate a series of keyboard events.
