@@ -11,7 +11,6 @@ from zipfile import ZipFile
 from appdirs import AppDirs
 
 
-# TODO: keep these up to date
 CHROMIUM_REVISION = 662092
 REVISION_MIN = 662082
 REVISION_MAX = 662102

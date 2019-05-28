@@ -4,7 +4,7 @@ import time
 from .exceptions import BrowserError, PageError
 
 
-class JSObject:
+class JSHandle:
     '''An interface for interacting with javascript objects in browser runtime'''
 
     def __init__(self, object_id, description, page):
@@ -38,9 +38,9 @@ class JSObject:
                 result[prop_name] = prop_value['value']
             elif prop_value['type'] == 'object':
                 if prop_value.get('subtype') == 'node':
-                    result[prop_name] = Element(prop_value['objectId'], prop_value['description'], self._page)
+                    result[prop_name] = ElementHandle(prop_value['objectId'], prop_value['description'], self._page)
                 else:
-                    result[prop_name] = JSObject(prop_value['objectId'], prop_value['description'], self._page)
+                    result[prop_name] = JSHandle(prop_value['objectId'], prop_value['description'], self._page)
             elif prop_value['type'] == 'undefined':
                 result[prop_name] = None
         return result
@@ -77,12 +77,11 @@ class JSObject:
         if 'value' in response['result']:
             return response['result']['value']
         # Or return an Element if it's a DOM node, or a generic object
-        # TODO: Is there a smarter way to retun different types of objects?
         elif response['result']['type'] == 'object':
             if response['result'].get('subtype') == 'node':
-                return Element(response['result']['objectId'], response['result']['description'], self._page)
+                return ElementHandle(response['result']['objectId'], response['result']['description'], self._page)
             else:
-                return JSObject(response['result']['objectId'], response['result']['description'], self._page)
+                return JSHandle(response['result']['objectId'], response['result']['description'], self._page)
         elif response['result']['type'] == 'undefined':
             return None
         else:
@@ -98,8 +97,8 @@ class JSObject:
         return to_return
 
 
-class Element(JSObject):
-    '''A special kind of JSObject with extra helper methods'''
+class ElementHandle(JSHandle):
+    '''A special kind of JSHandle with extra helper methods'''
 
     ORDERED_NODE_SNAPSHOT_TYPE = 7  # TODO: can get this code from JS?
 
@@ -157,24 +156,47 @@ class Element(JSObject):
             [self]
         )
 
+    def _get_clickable_point(self):
+        '''Loop through the list of quads to find one with enough area to be clickable; raise an error if none are.'''
+        quads = self._page.session.send('DOM.getContentQuads', objectId=self._object_id)['quads']
+        for quad in quads:
+            points = [
+                {'x': quad[0], 'y': quad[1]},
+                {'x': quad[2], 'y': quad[3]},
+                {'x': quad[4], 'y': quad[5]},
+                {'x': quad[6], 'y': quad[7]},
+            ]
+            if self._compute_quad_area(points) > 1:
+                x = sum([point['x'] for point in points]) / 4
+                y = sum([point['y'] for point in points]) / 4
+                return x, y
+        raise PageError('Element is not clickable')
+
+    def _compute_quad_area(self, points):
+        '''Estimate area based on set of points. see https://github.com/GoogleChrome/puppeteer/blob/
+           084cf021195dbe125d26496796f590a4300fb844/lib/JSHandle.js#L503-L513'''
+        area = 0
+        for i in range(len(points)):
+            p1 = points[i]
+            p2 = points[(i + 1) % len(points)]
+            area += (p1['x'] * p2['y'] - p2['x'] * p1['y']) / 2
+        return abs(area)
+
     def click(self, button='left', click_count=1, delay=0):
         self._scroll_into_view_if_needed()
-        quads = self._page.session.send('DOM.getContentQuads', objectId=self._object_id)['quads'][0]
-        mean_x = sum([quads[i] for i in range(0, len(quads), 2)]) / (len(quads) / 2)
-        mean_y = sum([quads[i] for i in range(1, len(quads), 2)]) / (len(quads) / 2)
-        # TODO: Move the mouse in natural steps
-        self._page.session.send('Input.dispatchMouseEvent', type='mouseMoved', x=mean_x, y=mean_y)
+        x, y = self._get_clickable_point()
+        self._page.session.send('Input.dispatchMouseEvent', type='mouseMoved', x=x, y=y)
         self._page.session.send('Input.dispatchMouseEvent',
                                 type='mousePressed',
-                                x=mean_x,
-                                y=mean_y,
+                                x=x,
+                                y=y,
                                 button=button,
                                 clickCount=click_count)
         time.sleep(delay / 1000)
         self._page.session.send('Input.dispatchMouseEvent',
                                 type='mouseReleased',
-                                x=mean_x,
-                                y=mean_y,
+                                x=x,
+                                y=y,
                                 button=button,
                                 clickCount=click_count)
 

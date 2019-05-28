@@ -4,7 +4,7 @@ from contextlib import contextmanager
 from threading import Event
 
 from .exceptions import BrowserError, PageError
-from .js_object import Element, JSObject
+from .js_handle import ElementHandle, JSHandle
 from .lifecycle_watcher import LifecycleWatcher
 from .request import Request
 from .request_manager import RequestManager
@@ -68,7 +68,6 @@ class Page:
         """
         # TODO: Should this take xpath, css seclector, or both?
         element_list = self.xpath(xpath_expression)
-        # TODO: Can we check if the element is clickable?
         if not len(element_list):
             raise PageError('Element with xpath %s does not exist' % xpath_expression)
         element_list[0].click(button=button, click_count=click_count, delay=delay)
@@ -143,7 +142,7 @@ class Page:
 
     @property
     def document(self):
-        """An Element representing the current page's `document` object."""
+        """An ElementHandle representing the current page's `document` object."""
         return self.evaluate('document')
 
     def evaluate(self, expression):
@@ -161,9 +160,9 @@ class Page:
         if 'value' in response['result']:
             return response['result']['value']
         elif response['result'].get('subtype') == 'node':
-            return Element(response['result']['objectId'], response['result'].get('description'), self)
+            return ElementHandle(response['result']['objectId'], response['result'].get('description'), self)
         else:
-            return JSObject(response['result']['objectId'], response['result'].get('description'), self)
+            return JSHandle(response['result']['objectId'], response['result'].get('description'), self)
 
     def evaluate_on_new_document(self, script):
         """Set a script to be evaluated on each new page visiti.
@@ -234,7 +233,7 @@ class Page:
             selector (str): The CSS selector expression to search for.
 
         Returns:
-            A list of Element objects representing the HTML nodes found on the page.
+            A list of ElementHandle objects representing the HTML nodes found on the page.
         """
         return self.document.querySelectorAll(selector)
 
@@ -350,7 +349,7 @@ class Page:
             expression (str): The xpath expression to search for.
 
         Returns:
-            A list of Element objects representing the HTML nodes found on the page.
+            A list of ElementHandle objects representing the HTML nodes found on the page.
         """
         return self.document.xpath(expression)
 

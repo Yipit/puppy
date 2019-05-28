@@ -5,7 +5,7 @@ import pytest_httpbin
 from unittest import TestCase
 
 from puppy.exceptions import PageError
-from puppy.js_object import JSObject, Element
+from puppy.js_handle import JSHandle, ElementHandle
 
 from ..test_helpers import page_context
 
@@ -41,7 +41,7 @@ class PageCase(TestCase):
             # And when the expression returns a Javascript object...
             result = page.evaluate('window.document')
             #  ... I get a remote object reference
-            self.assertIsInstance(result, JSObject)
+            self.assertIsInstance(result, JSHandle)
             self.assertEqual(result.description, '#document')
 
     def test_evaluate_on_new_document(self):
@@ -77,10 +77,10 @@ class PageCase(TestCase):
             page.goto(self.httpbin + '/html')
             # When I try to select an element by xpath...
             element_list = page.xpath('*//h1')
-            # ... I get back a list of all matching Element objects
+            # ... I get back a list of all matching ElementHandle objects
             self.assertIsInstance(element_list, list)
             self.assertEqual(len(element_list), 1)
-            self.assertIsInstance(element_list[0], Element)
+            self.assertIsInstance(element_list[0], ElementHandle)
             self.assertEqual(element_list[0].text, 'Herman Melville - Moby-Dick')
             self.assertEqual(element_list[0].html, '<h1>Herman Melville - Moby-Dick</h1>')
 
@@ -137,7 +137,7 @@ class PageCase(TestCase):
             # When I call page.wait_for_xpath, the code will wait until one or more matching elemnts appear and return them
             elements = page.wait_for_xpath('*//div[@id="new-element"]')
             self.assertIsInstance(elements, list)
-            self.assertIsInstance(elements[0], Element)
+            self.assertIsInstance(elements[0], ElementHandle)
             self.assertEqual(elements[0].get_property('id'), 'new-element')
             self.assertEqual(elements[0].text, 'I am a new element')
 
