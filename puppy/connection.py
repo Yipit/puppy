@@ -1,4 +1,5 @@
 import json
+import logging
 
 from six.moves import queue
 from threading import Event, Thread
@@ -9,6 +10,9 @@ from websocket._exceptions import WebSocketConnectionClosedException
 from . import settings
 from .exceptions import BrowserError
 from .session import Session
+
+
+logger = logging.getLogger(__name__)
 
 
 class Connection:
@@ -44,8 +48,7 @@ class Connection:
         while self.connected:
             try:
                 message_raw = self._ws.recv()
-                if self._debug:  # TODO: set up a logger and format this nicely
-                    print('recieved -- ', message_raw[:1000])
+                logger.debug('RECV - %s' % message_raw[:1000])
             # Will happen when this loop is still running after we close the browser.
             # TODO: Think about the right way to handle this.
             except WebSocketConnectionClosedException:
@@ -93,16 +96,15 @@ class Connection:
             message['id'] = id_
         event_ = Event()
         self.messages[id_] = {'event': event_}
-        if self._debug:  # TODO: set up a logger and format this nicely
-            print('sent -- ', json.dumps(message))
+
+        logger.debug('SEND - %s' % json.dumps(message))
 
         # if the WS connection is closed and we didn't intentional close this connection
         if self.connected and not self._ws.connected:
             raise BrowserError('Connection with browser is closed')
 
         if not self.connected:
-            if self._debug:
-                print('Connection manually closed, aborting')
+            logger.debug('Connection manually closed, aborting')
             return
 
         self._ws.send(json.dumps(message))
