@@ -32,17 +32,7 @@ class JSHandle:
         for prop in response['result']:
             prop_name = prop['name']
             prop_value = prop['value']
-
-            # TODO: This logic is getting repeated a few times
-            if 'value' in prop_value:
-                result[prop_name] = prop_value['value']
-            elif prop_value['type'] == 'object':
-                if prop_value.get('subtype') == 'node':
-                    result[prop_name] = ElementHandle(prop_value['objectId'], prop_value['description'], self._page)
-                else:
-                    result[prop_name] = JSHandle(prop_value['objectId'], prop_value['description'], self._page)
-            elif prop_value['type'] == 'undefined':
-                result[prop_name] = None
+            result[prop_name] = self._get_return_value(prop_value)
         return result
 
     def _method(self, method, *args):
@@ -73,19 +63,7 @@ class JSHandle:
             raise PageError('Exception raised in remote javascript call: "{}"'
                             .format(response['exceptionDetails']['exception']['description']))
 
-        # If the result is a primitive value return that
-        if 'value' in response['result']:
-            return response['result']['value']
-        # Or return an Element if it's a DOM node, or a generic object
-        elif response['result']['type'] == 'object':
-            if response['result'].get('subtype') == 'node':
-                return ElementHandle(response['result']['objectId'], response['result']['description'], self._page)
-            else:
-                return JSHandle(response['result']['objectId'], response['result']['description'], self._page)
-        elif response['result']['type'] == 'undefined':
-            return None
-        else:
-            raise BrowserError('Unknown response from remote javascipt call')  # TODO: Find out if this can happen
+        return self._get_return_value(response['result'])
 
     def _convert_args(self, args):
         to_return = []
@@ -95,6 +73,21 @@ class JSHandle:
             else:
                 to_return.append({'value': arg})
         return to_return
+
+    def _get_return_value(self, protocol_result):
+        # If the result is a primitive value return that
+        if 'value' in protocol_result:
+            return protocol_result['value']
+        # Or return an Element if it's a DOM node, or a generic object
+        elif protocol_result['type'] == 'object':
+            if protocol_result.get('subtype') == 'node':
+                return ElementHandle(protocol_result['objectId'], protocol_result['description'], self._page)
+            else:
+                return JSHandle(protocol_result['objectId'], protocol_result['description'], self._page)
+        elif protocol_result['type'] == 'undefined':
+            return None
+        else:
+            raise BrowserError('Unknown response from remote javascipt call')  # TODO: Find out if this can happen
 
 
 class ElementHandle(JSHandle):
