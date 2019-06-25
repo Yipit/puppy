@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 class Connection:
-    def __init__(self, endpoint, debug=False):
+    def __init__(self, endpoint):
         self.endpoint = endpoint
         self.connected = True
         self._ws = websocket.create_connection(self.endpoint, enable_multithread=True)
@@ -34,8 +34,6 @@ class Connection:
         self._handle_event_thread = Thread(target=self._handle_event_loop)
         self._handle_event_thread.setDaemon(True)
         self._handle_event_thread.start()
-
-        self._debug = debug
 
     def new_session(self, target_id, raise_on_closed_connection=True):
         response = self.send('Target.attachToTarget', targetId=target_id)

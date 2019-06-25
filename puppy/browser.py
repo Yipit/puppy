@@ -49,10 +49,10 @@ class Browser:
                  user_agent=None,
                  user_data_dir=None,
                  executable_path=None,
-                 debug=False,
                  args=None,
                  ignore_default_args=False,
                  no_sandbox=False,
+                 default_viewport=None,
                  page_class=None):
         self._PAGE_CLASS = page_class or Page
         if not executable_path:
@@ -93,9 +93,14 @@ class Browser:
             proxy_address = '{}://{}:{}'.format(parsed_uri.scheme, parsed_uri.hostname, parsed_uri.port)
             cmd.append('--proxy-server={}'.format(proxy_address))
 
+        self._default_viewport = default_viewport or {'width': 800, 'height': 600}
+        if not any('--window-size' in arg for arg in cmd):
+            cmd.append('--window-size={},{}'.format(self._default_viewport['width'],
+                                                    self._default_viewport['height']))
+
         self.process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         self.websocket_endpoint = self._wait_for_ws_endpoint('http://localhost:{}/json/version'.format(self._port))
-        self.connection = Connection(self.websocket_endpoint, debug=debug)
+        self.connection = Connection(self.websocket_endpoint)
         pages = json.loads(urlopen('http://localhost:{}/json/list'.format(self._port)).read())
 
         self._pages = []
@@ -109,6 +114,7 @@ class Browser:
             self.page = self._pages[0]
         else:
             self.page = self._new_page()
+        self.page.set_viewport(self._default_viewport)
 
     def _new_page(self, url='about:blank'):
         response = self.connection.send('Target.createTarget', url=url)

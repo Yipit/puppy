@@ -30,6 +30,10 @@ class Page:
         self._navigation_url = None
         self._navigation_event = Event()
 
+        self._viewport = None
+        self._emulating_mobile = False
+        self._emulating_touch = False
+
         self.session = self.create_devtools_session()
 
         self.session.send('Network.enable', enabled=True)
@@ -278,6 +282,43 @@ class Page:
         """
         self._request_manager.set_extra_http_headers(headers)
 
+    def set_viewport(self, viewport):
+        """Set a viewport for the page to emulate. Will force page to reload if turning mobile or touch
+           emulation after already having navigated to a page.
+
+        Args:
+            viewport (dict):
+                - height (int)
+                - width (int)
+                - device_scale_factor (int, optional: defaults to 1)
+                - mobile (bool, optional: defaults to False)
+                - has_touch (bool, optional: defaults to False)
+                - is_landscape (bool, optional: defaults to False)
+
+        Returns:
+            None.
+        """
+        mobile = viewport.get('mobile', False)
+        has_touch = viewport.get('has_touch', False)
+        if viewport.get('is_landscape'):
+            screen_orientation = {'angle': 90, 'type': 'landscapePrimary'}
+        else:
+            screen_orientation = {'angle': 0, 'type': 'portraitPrimary'}
+
+        self.session.send('Emulation.setDeviceMetricsOverride',
+                          width=viewport.get('width'),
+                          height=viewport.get('height'),
+                          deviceScaleFactor=viewport.get('device_scale_factor', 1),
+                          mobile=mobile,
+                          screenOrientation=screen_orientation)
+        self.session.send('Emulation.setTouchEmulationEnabled', enabled=has_touch)
+        reload_needed = self._emulating_mobile != mobile or self._emulating_touch != has_touch
+        self._emulating_mobile = mobile
+        self._emulating_touch = has_touch
+        self._viewport = viewport
+        if self._navigation_url and reload_needed:
+            self.reload()
+
     def type(self, xpath_expression, text, delay=0):
         """Give an element focus, then simulate a series of keyboard events.
 
@@ -322,6 +363,10 @@ class Page:
         lifecycle_watcher = LifecycleWatcher(self, wait_until, False)
         yield
         lifecycle_watcher.wait(timeout)
+
+    def viewport(self):
+        """Returns the page's viewport."""
+        return self._viewport
 
     def wait_for_xpath(self, xpath_expr, visible=False, hidden=False, timeout=30):
         """Pause execution until an element is present on the page.
