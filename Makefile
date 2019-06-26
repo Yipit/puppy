@@ -1,4 +1,6 @@
 SHELL := /bin/bash
+CUSTOM_PIP_INDEX=localshop
+
 
 clean:
 	@echo "Removing garbage..."
@@ -9,7 +11,7 @@ clean:
 
 # Only releasing privately for now
 release: clean
-	@if [ -z $$CUSTOM_PIP_INDEX ]; then \
+	@if [ -z "$(CUSTOM_PIP_INDEX)" ]; then \
 		echo "Need to set a CUSTOM_PIP_INDEX to release"; \
 		exit 1; \
 	fi
