@@ -37,6 +37,9 @@ class LifecycleWatcher:
         elif name not in self.LIFECYCLE_EVENTS:
             return
 
+        if self._loader_id != loaderId:
+            return
+
         if not self._require_new_loader or loaderId != self._initial_loader_id:
             self._lifecycle_events.add(self.LIFECYCLE_EVENTS[name])
         if self._check_events():
