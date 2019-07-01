@@ -1,7 +1,5 @@
-import json
-
 from six.moves import queue
-from threading import Event, Thread
+from threading import Thread
 
 from . import settings
 from .exceptions import BrowserError
@@ -23,13 +21,7 @@ class Session:
         self._handle_event_thread.start()
 
     def on_message(self, message):
-        if 'id' in message:
-            if 'error' in message:
-                self.messages[message['id']]['error'] = message['error']
-            else:
-                self.messages[message['id']]['result'] = message.get('result')
-            self.messages[message['id']]['event'].set()
-        elif 'method' in message:
+        if 'method' in message:
             self.events_queue.put(message)
 
     def _handle_event_loop(self):
@@ -47,19 +39,15 @@ class Session:
 
     def send(self, method, **kwargs):
         cleaned_kwargs = {k: v for k, v in kwargs.items() if v is not None}
-        id_ = self.message_id()
-        message = {'id': id_, 'method': method, 'params': cleaned_kwargs}
-        event_ = Event()
-        self.messages[id_] = {'event': event_}
-        self._connection.send('Target.sendMessageToTarget',
-                              message=json.dumps(message),
-                              sessionId=self._session_id)
-        if not event_.wait(timeout=settings.MESSAGE_TIMEOUT):
+        message_id = self._connection.raw_send({'method': method,
+                                                'params': cleaned_kwargs,
+                                                'sessionId': self._session_id})
+        if not self._connection.messages[message_id]['event'].wait(timeout=settings.MESSAGE_TIMEOUT):
             raise BrowserError('Timed out waiting for response from browser')
-        if 'error' in self.messages[id_]:
-            raise BrowserError(self.messages[id_]['error'])
+        if 'error' in self._connection.messages[message_id]:
+            raise BrowserError(self._connection.messages[message_id]['error'])
         else:
-            return self.messages[id_]['result']
+            return self._connection.messages[message_id]['result']
 
     def on(self, method, cb):
         self.event_handlers[method] = self.event_handlers.get(method, [])

@@ -5,7 +5,6 @@ from threading import Event
 
 from .exceptions import BrowserError, PageError
 from .frame import FrameManager
-from .js_handle import ElementHandle, JSHandle
 from .request import Request
 from .response import Response
 
@@ -135,7 +134,7 @@ class Page:
         raw_cookies = self.cookies(urls)
         return {r['name']: r['value'] for r in raw_cookies}
 
-    def create_devtools_session(self, raise_on_closed_connection=True):
+    def create_devtools_session(self):
         """Create a new session to send messages to the running Chrome devtools server.
 
         Args:
@@ -146,7 +145,7 @@ class Page:
         Returns:
             a Session object.
         """
-        return self._connection.new_session(self._target_id, raise_on_closed_connection=raise_on_closed_connection)
+        return self._connection.new_session(self._target_id)
 
     @property
     def document(self):

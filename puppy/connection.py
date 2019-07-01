@@ -35,12 +35,9 @@ class Connection:
         self._handle_event_thread.setDaemon(True)
         self._handle_event_thread.start()
 
-    def new_session(self, target_id, raise_on_closed_connection=True):
-        response = self.send('Target.attachToTarget', targetId=target_id)
-        session_id = response['sessionId']
-        session = Session(self, session_id)
-        self._sessions[session_id] = session
-        return session
+    def new_session(self, target_id):
+        response = self.send('Target.attachToTarget', targetId=target_id, flatten=True)
+        return self._sessions.get(response['sessionId'])
 
     def _recv_loop(self):
         while self.connected:
@@ -52,6 +49,13 @@ class Connection:
                 logger.debug(e)
                 continue
             message = json.loads(message_raw)
+
+            if message.get('method') == 'Target.attachedToTarget':
+                session_id = message['params']['sessionId']
+                self._sessions[session_id] = Session(self, session_id)
+
+            if 'sessionId' in message:
+                self._sessions.get(message['sessionId']).on_message(message)
 
             # Messages meant to be passed to some session
             if message.get('method') == 'Target.receivedMessageFromTarget':
@@ -85,10 +89,24 @@ class Connection:
             self.events_queue.task_done()
 
     def send(self, method, **kwargs):
-        id_ = self._next_message_id()
-        message = {'id': id_, 'method': method, 'params': kwargs}
-        event_ = Event()
-        self.messages[id_] = {'event': event_}
+        message_id = self.raw_send({'method': method, 'params': kwargs})
+
+        if not self.messages[message_id]['event'].wait(timeout=settings.MESSAGE_TIMEOUT):
+            raise BrowserError('Timed out waiting for response from browser')
+
+        if method == 'Browser.close':
+            self._on_closed()
+
+        if 'error' in self.messages[message_id]:
+            raise BrowserError(self.messages[message_id]['error'])
+        else:
+            return self.messages[message_id]['result']
+
+    def raw_send(self, message):
+        if 'id' not in message:
+            id_ = self._next_message_id()
+            message['id'] = id_
+        self.messages[message['id']] = {'event': Event()}
 
         logger.debug('SEND - %s' % json.dumps(message))
 
@@ -97,17 +115,7 @@ class Connection:
             raise BrowserError('Connection with browser is closed')
 
         self._ws.send(json.dumps(message))
-
-        if not event_.wait(timeout=settings.MESSAGE_TIMEOUT):
-            raise BrowserError('Timed out waiting for response from browser')
-
-        if message['method'] == 'Browser.close':
-            self._on_closed()
-
-        if 'error' in self.messages[id_]:
-            raise BrowserError(self.messages[id_]['error'])
-        else:
-            return self.messages[id_]['result']
+        return message['id']
 
     def on(self, method, cb):
         self.event_handlers[method] = self.event_handlers.get(method, [])

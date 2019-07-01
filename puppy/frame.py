@@ -54,7 +54,6 @@ class FrameManager:
         lifecycle_watcher.wait()
 
     def _on_lifecylce_event(self, **event):
-        self._all_lifecycle_events.append(event)
         if event['frameId'] not in self._frames:
             return
         self._frames[event['frameId']].on_lifecycle_event(**event)
