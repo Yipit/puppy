@@ -29,6 +29,7 @@ class Page:
         self._frame_id = None
         self._navigation_url = None
         self._navigation_event = Event()
+        self._default_navigation_timeout = None
 
         self._viewport = None
         self._emulating_mobile = False
@@ -179,7 +180,7 @@ class Page:
     # TODO: referrer is not tested
     def goto(self,
              url,
-             timeout=30,
+             timeout=None,
              wait_until='load',
              referrer=None):
         """Visit a url.
@@ -192,6 +193,7 @@ class Page:
         Returns:
             The response recieved for the navigation request.
         """
+        timeout = timeout or self._default_navigation_timeout or 30
         return self._frame_manager.navigate_frame(self._frame_manager._main_frame,
                                                   url,
                                                   timeout,
@@ -263,6 +265,14 @@ class Page:
             raise PageError('Element at {} not found'.format(selector))
         element = element_list[0]
         return element.select(*values)
+
+    def set_default_navigation_timeout(self, timeout):
+        """Set the default timeout for page navigation events.
+
+        Args:
+            timeout (int): The new default timeout.
+        """
+        self._default_navigation_timeout = timeout
 
     def set_extra_http_headers(self, headers):
         """Define additional headers to be sent with every network request.
