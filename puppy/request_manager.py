@@ -2,8 +2,7 @@ from six.moves.urllib.parse import urlparse
 
 
 class RequestManager:
-    def __init__(self, page, proxy_uri):
-        self._page = page
+    def __init__(self, session_factory, proxy_uri):
         self._proxy_uri = proxy_uri
         if self._proxy_uri:
             parsed_proxy_uri = urlparse(self._proxy_uri)
@@ -15,7 +14,7 @@ class RequestManager:
         self._blacklisted_url_patterns = []
         self._blacklisted_resource_types = []
         self._extra_http_headers = {}
-        self._session = self._page.create_devtools_session()
+        self._session = session_factory()
         self._session.send('Network.setRequestInterception', patterns=[{'urlPattern': '*'}])
         self._session.on('Network.requestIntercepted', self._on_request_intercepted)
 

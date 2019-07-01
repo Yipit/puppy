@@ -13,6 +13,7 @@ from .chromium_downloader import download_chromium, get_executable_path
 from .connection import Connection
 from .exceptions import BrowserError
 from .page import Page
+from .target import Target
 from .utils import get_free_port
 
 
@@ -87,9 +88,9 @@ class Browser:
             self._tmp_user_data_dir = tempfile.mkdtemp(dir='/tmp')
         cmd.append('--user-data-dir={}'.format(user_data_dir or self._tmp_user_data_dir))
 
-        self._proxy_uri = proxy_uri
-        if self._proxy_uri is not None:
-            parsed_uri = urlparse(self._proxy_uri)
+        self.proxy_uri = proxy_uri
+        if self.proxy_uri is not None:
+            parsed_uri = urlparse(self.proxy_uri)
             proxy_address = '{}://{}:{}'.format(parsed_uri.scheme, parsed_uri.hostname, parsed_uri.port)
             cmd.append('--proxy-server={}'.format(proxy_address))
 
@@ -101,30 +102,22 @@ class Browser:
         self.process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         self.websocket_endpoint = self._wait_for_ws_endpoint('http://localhost:{}/json/version'.format(self._port))
         self.connection = Connection(self.websocket_endpoint)
-        pages = json.loads(urlopen('http://localhost:{}/json/list'.format(self._port)).read())
 
-        self._pages = []
-        pages = [p for p in pages if p['type'] == 'page']
-        if len(pages):
-            for page in pages:
-                self._pages.append(self._PAGE_CLASS(self.connection,
-                                                    page['id'],
-                                                    self,
-                                                    proxy_uri=self._proxy_uri))
-            self.page = self._pages[0]
+        self._targets = []
+        targets = json.loads(urlopen('http://localhost:{}/json/list'.format(self._port)).read())
+        valid_targets = [p for p in targets if p['type'] == 'page']
+        if len(valid_targets):
+            for target in valid_targets:
+                self._targets.append(Target(target['id'], self, self._PAGE_CLASS))
         else:
-            self.page = self._new_page()
+            self._targets.append(self._create_target())
+
+        self.page = self._targets[0].page()
         self.page.set_viewport(self._default_viewport)
 
-    def _new_page(self, url='about:blank'):
+    def _create_target(self, url='about:blank'):
         response = self.connection.send('Target.createTarget', url=url)
-        target_id = response['targetId']
-        self.page = self._PAGE_CLASS(self.connection,
-                                     target_id,
-                                     self,
-                                     proxy_uri=self._proxy_uri)
-        self._pages.append(self.page)
-        return self.page
+        return Target(response['targetId'], self, self._PAGE_CLASS)
 
     def _wait_for_ws_endpoint(self, url, timeout=5):
         PAUSE = 0.01

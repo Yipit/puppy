@@ -7,10 +7,11 @@ from .exceptions import BrowserError, PageError
 class JSHandle:
     '''An interface for interacting with javascript objects in browser runtime'''
 
-    def __init__(self, object_id, description, page):
+    def __init__(self, object_id, description, execution_context, session):
         self._object_id = object_id
         self._description = description
-        self._page = page
+        self._execution_context = execution_context
+        self._session = session
 
     def __repr__(self):
         return '<{} {}>'.format(self.__class__.__name__, self._description)
@@ -27,7 +28,7 @@ class JSHandle:
         return self._prop(property_name)
 
     def get_properties(self):
-        response = self._page.session.send('Runtime.getProperties', objectId=self.object_id, ownProperties=True)
+        response = self._session.send('Runtime.getProperties', objectId=self.object_id, ownProperties=True)
         result = {}
         for prop in response['result']:
             prop_name = prop['name']
@@ -46,33 +47,13 @@ class JSHandle:
         return self._remote_call(function, args)
 
     def _remote_call(self, function, args, return_by_value=False):
-        # I think this is right, but having trouble figuring out exactly what all these IDs mean
-        args = self._convert_args(args)
-        execution_context_id = json.loads(self._object_id)['injectedScriptId']
-        response = self._page.session.send(
-            'Runtime.callFunctionOn',
-            functionDeclaration=function,
-            arguments=args,
-            executionContextId=execution_context_id,
-            returnByValue=return_by_value,
-            awaitPromise=True
-        )
-
+        response = self._execution_context.call_function_on(function, args, return_by_value)
         # If the remote call raised and exception, raise it here
         if 'exceptionDetails' in response:
             raise PageError('Exception raised in remote javascript call: "{}"'
                             .format(response['exceptionDetails']['exception']['description']))
 
         return self._get_return_value(response['result'])
-
-    def _convert_args(self, args):
-        to_return = []
-        for arg in args:
-            if hasattr(arg, '_object_id'):
-                to_return.append({'objectId': arg._object_id})
-            else:
-                to_return.append({'value': arg})
-        return to_return
 
     def _get_return_value(self, protocol_result):
         # If the result is a primitive value return that
@@ -81,9 +62,15 @@ class JSHandle:
         # Or return an Element if it's a DOM node, or a generic object
         elif protocol_result['type'] == 'object':
             if protocol_result.get('subtype') == 'node':
-                return ElementHandle(protocol_result['objectId'], protocol_result['description'], self._page)
+                return ElementHandle(protocol_result['objectId'],
+                                     protocol_result['description'],
+                                     self._execution_context,
+                                     self._session)
             else:
-                return JSHandle(protocol_result['objectId'], protocol_result['description'], self._page)
+                return JSHandle(protocol_result['objectId'],
+                                protocol_result['description'],
+                                self._execution_context,
+                                self._session)
         elif protocol_result['type'] == 'undefined':
             return None
         else:
@@ -96,7 +83,8 @@ class ElementHandle(JSHandle):
     ORDERED_NODE_SNAPSHOT_TYPE = 7  # TODO: can get this code from JS?
 
     def xpath(self, expression):
-        xpath_result = self._page.document._method('evaluate', expression, self, None, self.ORDERED_NODE_SNAPSHOT_TYPE)
+        document = self._execution_context.evaluate('document')
+        xpath_result = document._method('evaluate', expression, self, None, self.ORDERED_NODE_SNAPSHOT_TYPE)
         element_count = xpath_result._prop('snapshotLength')
         results = []
         for i in range(element_count):
@@ -151,7 +139,7 @@ class ElementHandle(JSHandle):
 
     def _get_clickable_point(self):
         '''Loop through the list of quads to find one with enough area to be clickable; raise an error if none are.'''
-        quads = self._page.session.send('DOM.getContentQuads', objectId=self._object_id)['quads']
+        quads = self._session.send('DOM.getContentQuads', objectId=self._object_id)['quads']
         for quad in quads:
             points = [
                 {'x': quad[0], 'y': quad[1]},
@@ -178,20 +166,20 @@ class ElementHandle(JSHandle):
     def click(self, button='left', click_count=1, delay=0):
         self._scroll_into_view_if_needed()
         x, y = self._get_clickable_point()
-        self._page.session.send('Input.dispatchMouseEvent', type='mouseMoved', x=x, y=y)
-        self._page.session.send('Input.dispatchMouseEvent',
-                                type='mousePressed',
-                                x=x,
-                                y=y,
-                                button=button,
-                                clickCount=click_count)
+        self._session.send('Input.dispatchMouseEvent', type='mouseMoved', x=x, y=y)
+        self._session.send('Input.dispatchMouseEvent',
+                           type='mousePressed',
+                           x=x,
+                           y=y,
+                           button=button,
+                           clickCount=click_count)
         time.sleep(delay / 1000)
-        self._page.session.send('Input.dispatchMouseEvent',
-                                type='mouseReleased',
-                                x=x,
-                                y=y,
-                                button=button,
-                                clickCount=click_count)
+        self._session.send('Input.dispatchMouseEvent',
+                           type='mouseReleased',
+                           x=x,
+                           y=y,
+                           button=button,
+                           clickCount=click_count)
 
     @property
     def is_visible(self):

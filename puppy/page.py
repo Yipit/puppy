@@ -4,20 +4,20 @@ from contextlib import contextmanager
 from threading import Event
 
 from .exceptions import BrowserError, PageError
+from .frame import FrameManager
 from .js_handle import ElementHandle, JSHandle
-from .lifecycle_watcher import LifecycleWatcher
 from .request import Request
-from .request_manager import RequestManager
 from .response import Response
 
 
 class Page:
+    # TODO: don't need to pass around the proxy uri everywhere... use an authenticate_proxy method
+    # or something instead
     def __init__(self, connection, target_id, browser, proxy_uri=None):
         self._proxy_uri = proxy_uri
         self._target_id = target_id
         self._connection = connection
         self._browser = browser
-        self._request_manager = RequestManager(self, self._proxy_uri)
 
         self.closed = False
 
@@ -36,19 +36,22 @@ class Page:
 
         self.session = self.create_devtools_session()
 
+        self._frame_manager = FrameManager(self.session, self)
+
         self.session.send('Network.enable', enabled=True)
         self.session.on('Network.requestWillBeSent', self._on_request_will_be_sent)
         self.session.on('Network.responseReceived', self._on_response_recieved)
 
         self.session.send('Page.enable', enabled=True)
-        self.session.send('Page.setLifecycleEventsEnabled', enabled=True)
-        self.session.on('Page.lifecycleEvent', self._on_lifecycle_event)
-
         self.session.on('Page.frameNavigated', self._on_frame_navigated)
 
     @property
     def browser(self):
         return self._browser
+
+    @property
+    def main_frame(self):
+        return self._frame_manager._main_frame
 
     # Public API #
 
@@ -160,13 +163,7 @@ class Page:
            if the remote code returns a primitive type, or a dict describing a remote object if
            the code returns a complex type.
         """
-        response = self.session.send('Runtime.evaluate', expression=expression)
-        if 'value' in response['result']:
-            return response['result']['value']
-        elif response['result'].get('subtype') == 'node':
-            return ElementHandle(response['result']['objectId'], response['result'].get('description'), self)
-        else:
-            return JSHandle(response['result']['objectId'], response['result'].get('description'), self)
+        return self.main_frame.evaluate(expression)
 
     def evaluate_on_new_document(self, script):
         """Set a script to be evaluated on each new page visiti.
@@ -195,15 +192,11 @@ class Page:
         Returns:
             The response recieved for the navigation request.
         """
-        lifecyle_watcher = LifecycleWatcher(self, wait_until)
-        self._navigation_event.clear()
-        referrer = (referrer or
-                    self._request_manager.extra_http_headers.get('Referer') or
-                    self._request_manager.extra_http_headers.get('referer'))
-        self.session.send('Page.navigate', url=url, referrer=referrer)
-        lifecyle_watcher.wait(timeout)
-        self._navigation_event.wait(timeout=3)  # make sure the frameNavigated event fires before getting the response
-        return self._wait_for_response(self._navigation_url, timeout=3)
+        return self._frame_manager.navigate_frame(self._frame_manager._main_frame,
+                                                  url,
+                                                  timeout,
+                                                  wait_until,
+                                                  referrer)
 
     def focus(self, xpath_expression):
         """Focus an element on the page.
@@ -280,7 +273,7 @@ class Page:
         Returns:
             None.
         """
-        self._request_manager.set_extra_http_headers(headers)
+        self._frame_manager.request_manager.set_extra_http_headers(headers)
 
     def set_viewport(self, viewport):
         """Set a viewport for the page to emulate. Will force page to reload if turning mobile or touch
@@ -360,9 +353,8 @@ class Page:
             wait_until (str, optional): When to consider the navigation as having succeeded. Defaults to "load".
             timeout (int, optional): Maximum number of seconds to wait for the navigation to finish. Defaults to 30.
         """
-        lifecycle_watcher = LifecycleWatcher(self, wait_until, False)
-        yield
-        lifecycle_watcher.wait(timeout)
+        with self._frame_manager.wait_for_navigation(self._frame_manager._main_frame, wait_until, timeout):
+            yield
 
     def viewport(self):
         """Returns the page's viewport."""
@@ -416,10 +408,10 @@ class Page:
         return self.document.xpath(expression)
 
     def blacklist_url_patterns(self, url_patterns):
-        self._request_manager.blacklist_url_patterns(url_patterns)
+        self._frame_manager.request_manager.blacklist_url_patterns(url_patterns)
 
     def blacklist_resource_types(self, *args):
-        self._request_manager.blacklist_resource_types(*args)
+        self._frame_manager.request_manager.blacklist_resource_types(*args)
 
     def get_responses(self, urls=None):
         responses = [request.response for request in self._requests_by_url.values() if request.response]
@@ -446,14 +438,6 @@ class Page:
         if request is not None:
             response = Response(kwargs['response'], request, self)
             request.set_response(response)
-
-    @property
-    def loader_id(self):
-        return self._loader_id
-
-    def _on_lifecycle_event(self, **kwargs):
-        if kwargs['name'] == 'init':
-            self._loader_id = kwargs['loaderId']
 
     def _on_frame_navigated(self, **kwargs):
         is_main_frame = not bool(kwargs.get('parentId'))

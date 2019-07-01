@@ -1,7 +1,7 @@
 class Response:
-    def __init__(self, response_data, request, page):
+    def __init__(self, response_data, request, session):
         self._response_data = response_data
-        self._page = page
+        self._session = session
         self.request = request
 
     @property
@@ -25,5 +25,5 @@ class Response:
         return self._response_data['mimeType']
 
     def text(self):
-        response = self._page.session.send('Network.getResponseBody', requestId=self.request.request_id)
+        response = self._session.send('Network.getResponseBody', requestId=self.request.request_id)
         return response.get('body')
