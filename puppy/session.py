@@ -38,16 +38,7 @@ class Session:
             self.events_queue.task_done()
 
     def send(self, method, **kwargs):
-        cleaned_kwargs = {k: v for k, v in kwargs.items() if v is not None}
-        message_id = self._connection.raw_send({'method': method,
-                                                'params': cleaned_kwargs,
-                                                'sessionId': self._session_id})
-        if not self._connection.messages[message_id]['event'].wait(timeout=settings.MESSAGE_TIMEOUT):
-            raise BrowserError('Timed out waiting for response from browser')
-        if 'error' in self._connection.messages[message_id]:
-            raise BrowserError(self._connection.messages[message_id]['error'])
-        else:
-            return self._connection.messages[message_id]['result']
+        return self._connection.send(method, self._session_id, **kwargs)
 
     def on(self, method, cb):
         self.event_handlers[method] = self.event_handlers.get(method, [])
