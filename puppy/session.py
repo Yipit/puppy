@@ -1,9 +1,6 @@
 from six.moves import queue
 from threading import Thread
 
-from . import settings
-from .exceptions import BrowserError
-
 
 class Session:
     def __init__(self, connection, session_id):

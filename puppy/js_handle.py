@@ -1,4 +1,3 @@
-import json
 import time
 
 from .exceptions import BrowserError, PageError

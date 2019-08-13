@@ -28,6 +28,10 @@ release: clean
 setup: clean
 	@echo "Installing dependencies..."; \
 	pip install --quiet -r development.txt;
+	@pre-commit install
+
+pre-commit: setup
+	@pre-commit run --all-files
 
 test:
 	@py.test --cov=puppy -v tests/
